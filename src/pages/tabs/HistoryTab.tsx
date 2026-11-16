@@ -1,0 +1,399 @@
+import { Fragment, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Download,
+  History,
+  PenLine,
+  RotateCw,
+  UserCog,
+  XCircle,
+} from "lucide-react";
+import {
+  formatDate,
+  signatureResults,
+  type ActivityAction,
+  type LogEntry,
+  type ResultStatus,
+} from "../../data";
+import { type CustomerScope } from "../../store";
+import { Badge, Button, Card, EmptyState, SearchInput, Segmented, cx } from "../../components/ui";
+import { TablePagination } from "../../components/TablePagination";
+import { BatchModal, type BatchJob } from "../../components/BatchModal";
+
+const PAGE_SIZE = 15;
+
+const counts = (l: LogEntry) => ({
+  applied: l.results.filter((r) => r.status === "applied").length,
+  skipped: l.results.filter((r) => r.status === "skipped").length,
+  failed: l.results.filter((r) => r.status === "failed").length,
+});
+
+const actions: Record<ActivityAction, string> = {
+  "template-created": "Template created",
+  "template-updated": "Template updated",
+  "template-deleted": "Template deleted",
+  "signature-assigned": "Signature assigned",
+  "delegate-added": "Delegate added",
+  "delegate-removed": "Delegate removed",
+};
+
+function activity(log: LogEntry) {
+  if (log.action) return log.action;
+  if (log.kind === "signature") return "signature-assigned";
+  return /^remove/i.test(log.name) ? "delegate-removed" : "delegate-added";
+}
+
+export function HistoryTab({
+  scope,
+  initialLogId,
+}: {
+  scope: CustomerScope;
+  initialLogId?: string;
+}) {
+  const { customer, logs, templates, users } = scope;
+  const [open, setOpen] = useState<string | null>(initialLogId ?? null);
+  const [tab, setTab] = useState<"all" | "signature" | "delegation" | "failed">("all");
+  const [q, setQ] = useState("");
+  const [job, setJob] = useState<BatchJob | null>(null);
+
+  const list = useMemo(
+    () =>
+      [...logs]
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+        .filter((l) => {
+          if (tab === "failed" && counts(l).failed === 0) return false;
+          if ((tab === "signature" || tab === "delegation") && l.kind !== tab) return false;
+          const s = q.trim().toLowerCase();
+          return (
+            !s ||
+            [actions[activity(l)], l.name, l.detail, l.triggeredBy].some((value) =>
+              value.toLowerCase().includes(s),
+            ) ||
+            l.results.some((r) =>
+              [r.email, r.name, r.message].some((value) => value.toLowerCase().includes(s)),
+            )
+          );
+        }),
+    [logs, tab, q],
+  );
+
+  const [page, setPage] = useState(() => {
+    const index = initialLogId ? list.findIndex((log) => log.id === initialLogId) : -1;
+    return index < 0 ? 1 : Math.floor(index / PAGE_SIZE) + 1;
+  });
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / PAGE_SIZE)));
+  const visible = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  function exportCsv(l: LogEntry) {
+    const rows = [
+      "name,email,status,message",
+      ...l.results.map((r) =>
+        [r.name, r.email, r.status, r.message].map((v) => `"${v.replace(/"/g, '""')}"`).join(","),
+      ),
+    ];
+    const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+    Object.assign(document.createElement("a"), {
+      href: url,
+      download: `${customer.domain}-batch-${l.id}.csv`,
+    }).click();
+    URL.revokeObjectURL(url);
+  }
+
+  function retry(l: LogEntry) {
+    if (customer.status !== "active" || l.kind !== "signature") return;
+    const t = templates.find((x) => x.id === l.templateId);
+    if (!t) return;
+    const failed = new Set(l.results.filter((r) => r.status === "failed").map((r) => r.userId));
+    const targets = users.filter((u) => failed.has(u.id));
+    setJob({
+      customerId: customer.id,
+      kind: "signature",
+      name: `${t.name} (retry)`,
+      detail: `Retry of ${targets.length} failed`,
+      templateId: t.id,
+      users: targets,
+      run: () => {
+        const results = signatureResults(targets);
+        const assignments = Object.fromEntries(
+          results
+            .filter((r) => r.status === "applied")
+            .map((r) => [
+              r.userId,
+              {
+                templateId: t.id,
+                templateName: t.name,
+                html: t.html,
+                at: new Date().toISOString(),
+              },
+            ]),
+        );
+        return { results, changes: { assignments } };
+      },
+    });
+  }
+
+  return (
+    <div>
+      <Card className="overflow-hidden">
+        <div className="records-toolbar flex flex-wrap items-center gap-3">
+          <SearchInput
+            className="min-w-0 flex-1 basis-48"
+            label="Search history"
+            placeholder="Search activity, user or agent"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+          <Segmented
+            value={tab}
+            onChange={(value) => {
+              setTab(value);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: `All ${logs.length}` },
+              { value: "signature", label: "Signatures" },
+              { value: "delegation", label: "Delegates" },
+              { value: "failed", label: "With failures" },
+            ]}
+          />
+        </div>
+
+        <div className="@container">
+          {list.length === 0 ? (
+            <EmptyState
+              icon={<History className="size-5" />}
+              title={logs.length ? "No matching activity" : "No activity yet"}
+              description={
+                logs.length
+                  ? "Try a different search or filter."
+                  : "Template, signature, and delegate activity will appear here."
+              }
+            />
+          ) : (
+            <table aria-label="History" className="data-table records-table">
+              <thead>
+                <tr>
+                  <th className="font-medium">Action</th>
+                  <th className="hidden @min-[52rem]:table-cell">Affected users or template</th>
+                  <th className="hidden @min-[52rem]:table-cell">Performed by</th>
+                  <th className="hidden @min-[52rem]:table-cell">Date and time</th>
+                  <th className="w-10">
+                    <span className="sr-only">Details</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((l) => {
+                  const c = counts(l);
+                  const action = activity(l);
+                  const canExpand = l.results.length > 0;
+                  const isOpen = open === l.id;
+                  const target =
+                    action === "signature-assigned" && l.results.length === 1
+                      ? `${l.name} · ${l.results[0].email}`
+                      : l.name;
+                  return (
+                    <Fragment key={l.id}>
+                      <tr className={isOpen ? "bg-brio-hover" : undefined}>
+                        <td>
+                          <div className="flex items-start gap-3 md:items-center">
+                            <span
+                              className={cx(
+                                "flex size-8 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+                                l.kind === "signature"
+                                  ? "bg-accent-50 text-accent-700"
+                                  : "bg-violet-50 text-violet-700",
+                              )}
+                            >
+                              {l.kind === "signature" ? <PenLine /> : <UserCog />}
+                            </span>
+                            <div className="min-w-0 [overflow-wrap:anywhere]">
+                              <p className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                                {actions[action]}
+                                {canExpand ? (
+                                  <span className="flex flex-wrap gap-1">
+                                    {c.applied > 0 && (
+                                      <Badge tone="green">{c.applied} applied</Badge>
+                                    )}
+                                    {c.skipped > 0 && (
+                                      <Badge tone="amber">{c.skipped} skipped</Badge>
+                                    )}
+                                    {c.failed > 0 && <Badge tone="rose">{c.failed} failed</Badge>}
+                                  </span>
+                                ) : (
+                                  <Badge>Saved locally</Badge>
+                                )}
+                              </p>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-500 @min-[52rem]:hidden">
+                                <p className="font-medium text-slate-700">{target}</p>
+                                {l.detail && <p>{l.detail}</p>}
+                                <p>
+                                  {l.triggeredBy} · {formatDate(l.startedAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="hidden py-3 [overflow-wrap:anywhere] @min-[52rem]:table-cell">
+                          <p className="font-medium text-slate-800">{target}</p>
+                          {l.detail && <p className="text-xs text-slate-500">{l.detail}</p>}
+                        </td>
+                        <td className="hidden py-3 text-slate-600 [overflow-wrap:anywhere] @min-[52rem]:table-cell">
+                          {l.triggeredBy}
+                        </td>
+                        <td className="hidden py-3 text-slate-600 @min-[52rem]:table-cell">
+                          <time dateTime={l.startedAt}>{formatDate(l.startedAt)}</time>
+                        </td>
+                        <td className="py-3">
+                          {canExpand && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-8 px-0"
+                              aria-expanded={isOpen}
+                              aria-label={`Details for ${l.name}`}
+                              onClick={() => setOpen(isOpen ? null : l.id)}
+                            >
+                              <ChevronRight
+                                className={cx("size-4 transition-transform", isOpen && "rotate-90")}
+                              />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                      {isOpen && canExpand && (
+                        <tr>
+                          <td colSpan={5} className="bg-slate-50/80 px-4 pb-4">
+                            <LogDetail
+                              log={l}
+                              onExport={() => exportCsv(l)}
+                              onRetry={
+                                customer.status === "active" &&
+                                l.kind === "signature" &&
+                                c.failed > 0 &&
+                                templates.some((t) => t.id === l.templateId)
+                                  ? () => retry(l)
+                                  : undefined
+                              }
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {logs.length > 0 && (
+          <TablePagination
+            label="History pagination"
+            noun="entry"
+            plural="entries"
+            total={list.length}
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
+        )}
+      </Card>
+      <BatchModal
+        job={job}
+        onClose={() => setJob(null)}
+        onDone={(l) => {
+          setOpen(l.id);
+          setPage(1);
+        }}
+      />
+    </div>
+  );
+}
+
+function LogDetail({
+  log,
+  onExport,
+  onRetry,
+}: {
+  log: LogEntry;
+  onExport: () => void;
+  onRetry?: () => void;
+}) {
+  const [filter, setFilter] = useState<"all" | ResultStatus>("all");
+  const rows = log.results.filter((r) => filter === "all" || r.status === filter);
+  return (
+    <div className="max-w-[calc(100cqw-2.5rem)] overflow-hidden rounded-xl bg-white ring-1 ring-slate-200/80">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+        <Segmented
+          size="sm"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all", label: `All ${log.results.length}` },
+            { value: "applied", label: "Applied" },
+            { value: "skipped", label: "Skipped" },
+            { value: "failed", label: "Failed" },
+          ]}
+        />
+        <div className="flex flex-wrap gap-2">
+          {onRetry && (
+            <Button size="sm" icon={<RotateCw className="size-3.5" />} onClick={onRetry}>
+              Retry in demo
+            </Button>
+          )}
+          <Button size="sm" icon={<Download className="size-3.5" />} onClick={onExport}>
+            Export CSV
+          </Button>
+        </div>
+      </div>
+      <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-600">
+        {counts(log).applied} applied · {counts(log).skipped} skipped · {counts(log).failed} failed
+      </p>
+      {log.notification && (
+        <p className="border-b border-brio-subtle px-4 py-2 text-xs text-brio-muted [overflow-wrap:anywhere]">
+          Notification requested for {log.notification.recipients.join(", ")}. No email was sent in
+          this demo.
+        </p>
+      )}
+      <div className="max-h-80 overflow-auto">
+        <table className="data-table text-[13px]">
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r, i) => (
+              <tr key={`${r.userId}-${i}`}>
+                <td className="w-8 py-2 pl-4">
+                  {r.status === "applied" ? (
+                    <CheckCircle2 className="size-4 text-emerald-500" />
+                  ) : r.status === "skipped" ? (
+                    <AlertTriangle className="size-4 text-amber-500" />
+                  ) : (
+                    <XCircle className="size-4 text-rose-500" />
+                  )}
+                </td>
+                <td className="py-2 pr-4 [overflow-wrap:anywhere]">
+                  <p className="font-medium text-slate-800">{r.name}</p>
+                  <p className="text-slate-500">{r.email}</p>
+                  <p className="text-slate-500 sm:hidden">{r.message}</p>
+                </td>
+                <td className="hidden py-2 pr-4 text-slate-500 [overflow-wrap:anywhere] sm:table-cell">
+                  {r.message}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={3} className="py-8 text-center text-slate-500">
+                  No {filter} results in this batch.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

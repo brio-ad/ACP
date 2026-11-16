@@ -1,0 +1,10 @@
+{
+  "description": "A Google Workspace admin tool for creating, previewing, and assigning email signature templates to selected users or the entire directory, with scheduling and deployment tracking.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
