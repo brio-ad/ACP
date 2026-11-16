@@ -75,6 +75,7 @@ export function RecipientPicker({
         }}
       />
       <UserTable
+        embedded
         heading={
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

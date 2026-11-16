@@ -1,19 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ListFilter, Users, X } from "lucide-react";
+import { RecordsTable } from "./RecordsTable";
+import { useMemo, useState, type ReactNode } from "react";
+import { Users } from "lucide-react";
 import { fullName, type DirectoryUser, type RecipientSelection } from "../data";
 import { TablePagination } from "./TablePagination";
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  Checkbox,
-  EmptyState,
-  Field,
-  SearchInput,
-  Select,
-  cx,
-} from "./ui";
+import { Avatar, Badge, Button, Card, Checkbox, EmptyState, SearchInput, Select, cx } from "./ui";
 
 export interface Filters {
   department: string;
@@ -35,6 +25,7 @@ export function UserTable({
   onSelectionChange,
   toolbarActions,
   heading,
+  embedded = false,
   extraColumns = [],
   rowAction,
   banner,
@@ -44,23 +35,14 @@ export function UserTable({
   onSelectionChange?: (s: RecipientSelection) => void;
   toolbarActions?: ReactNode;
   heading?: ReactNode;
+  embedded?: boolean;
   extraColumns?: ExtraColumn[];
   rowAction?: (u: DirectoryUser) => ReactNode;
   banner?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const popRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!filterOpen) return;
-    const close = (e: MouseEvent) =>
-      !popRef.current?.contains(e.target as Node) && setFilterOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [filterOpen]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,13 +55,11 @@ export function UserTable({
     );
   }, [users, query, filters]);
 
-  useEffect(() => setPage(0), [query, filters]);
-
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const currentPage = Math.min(page, pages - 1);
   const rows = filtered.slice(currentPage * PAGE, currentPage * PAGE + PAGE);
-  const activeFilters = (Object.keys(filters) as (keyof Filters)[]).filter((k) => filters[k]);
-  const narrowed = Boolean(query.trim()) || activeFilters.length > 0;
+  const hasFilters = Object.values(filters).some(Boolean);
+  const narrowed = Boolean(query.trim()) || hasFilters;
 
   const selectable = Boolean(selection && onSelectionChange);
   const ids = useMemo(() => new Set(selection?.ids), [selection?.ids]);
@@ -111,97 +91,74 @@ export function UserTable({
     }
   }
 
+  function updateFilter(key: keyof Filters, value: string) {
+    setFilters((previous) => ({ ...previous, [key]: value }));
+    setPage(0);
+  }
+
+  const Container = embedded ? "div" : Card;
   return (
-    <Card className="@container min-w-0">
-      {heading && <div className="px-5 pt-5">{heading}</div>}
-      <div className="records-toolbar relative flex flex-wrap items-center gap-3">
+    <Container className="@container min-w-0">
+      <div className="records-toolbar flex flex-wrap items-center gap-3">
         <SearchInput
           value={query}
           label="Search directory users"
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(0);
+          }}
           placeholder="Search by name, email or title"
-          className="min-w-0 flex-1 basis-40"
+          className="min-w-0 flex-1 basis-56"
         />
-        <div className="shrink-0 sm:relative" ref={popRef}>
-          <Button
-            icon={<ListFilter className="size-4" />}
-            onClick={() => setFilterOpen((o) => !o)}
-            className={activeFilters.length ? "ring-accent-200 text-accent-700" : ""}
-          >
-            Filter
-            {activeFilters.length > 0 && (
-              <span className="rounded-full bg-accent-600 px-1.5 text-[11px] text-white">
-                {activeFilters.length}
-              </span>
-            )}
-          </Button>
-          {filterOpen && (
-            <div className="absolute top-full right-0 z-30 mt-1.5 w-72 max-w-full space-y-3 rounded-xl bg-white p-4 shadow-xl ring-1 ring-slate-200 sm:max-w-none">
-              <FilterSelect
-                label="Department"
-                value={filters.department}
-                options={departments}
-                onChange={(v) => setFilters({ ...filters, department: v })}
-              />
-              <FilterSelect
-                label="Organizational unit"
-                value={filters.orgUnit}
-                options={orgUnits}
-                onChange={(v) => setFilters({ ...filters, orgUnit: v })}
-              />
-              <FilterSelect
-                label="Account status"
-                value={filters.status}
-                options={["active", "suspended"]}
-                onChange={(v) => setFilters({ ...filters, status: v })}
-              />
-              <div className="flex justify-between pt-1">
-                <Button size="sm" variant="ghost" onClick={() => setFilters(EMPTY)}>
-                  Clear all
-                </Button>
-                <Button size="sm" variant="primary" onClick={() => setFilterOpen(false)}>
-                  Done
-                </Button>
-              </div>
-            </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 @min-[52rem]:flex-none">
+          <FilterSelect
+            label="Department"
+            allLabel="All departments"
+            value={filters.department}
+            options={departments}
+            onChange={(value) => updateFilter("department", value)}
+          />
+          <FilterSelect
+            label="Organizational unit"
+            allLabel="All org units"
+            value={filters.orgUnit}
+            options={orgUnits}
+            onChange={(value) => updateFilter("orgUnit", value)}
+          />
+          <FilterSelect
+            label="Account status"
+            allLabel="All statuses"
+            value={filters.status}
+            options={["active", "suspended"]}
+            onChange={(value) => updateFilter("status", value)}
+          />
+          {narrowed && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setQuery("");
+                setFilters(EMPTY);
+                setPage(0);
+              }}
+            >
+              Clear
+            </Button>
           )}
         </div>
-        {toolbarActions && (
-          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            {toolbarActions}
-          </div>
-        )}
       </div>
-
-      {activeFilters.length > 0 && (
-        <div className="flex flex-wrap gap-2 border-b border-brio-subtle px-5 py-3">
-          {activeFilters.map((k) => (
-            <span
-              key={k}
-              className="inline-flex items-center gap-1 rounded-full bg-white py-0.5 pr-1 pl-2.5 text-xs text-slate-700 ring-1 ring-slate-200"
-            >
-              <span className="text-slate-400">{k === "orgUnit" ? "OU" : k}:</span> {filters[k]}
-              <button
-                type="button"
-                aria-label={`Remove ${k} filter`}
-                onClick={() => setFilters({ ...filters, [k]: "" })}
-                className="rounded-full p-0.5 hover:bg-slate-100"
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
+      {(heading || toolbarActions) && (
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+          {heading && <div className="min-w-0 flex-1 basis-64">{heading}</div>}
+          {toolbarActions && (
+            <div className="ml-auto flex flex-wrap items-center gap-2">{toolbarActions}</div>
+          )}
         </div>
       )}
-
       <div className="px-5 pt-3 empty:hidden">{banner}</div>
 
       {rows.length ? (
         <div className={cx("overflow-auto", selectable && "max-h-[min(48dvh,28rem)]")}>
-          <table
-            aria-label={selectable ? "Signature recipients" : "Workspace directory"}
-            className="data-table records-table"
-          >
+          <RecordsTable aria-label={selectable ? "Signature recipients" : "Workspace directory"}>
             <thead className={selectable ? "sticky top-0 z-10" : undefined}>
               <tr>
                 {selectable && (
@@ -270,10 +227,10 @@ export function UserTable({
                         </div>
                       </div>
                     </td>
-                    <td className="hidden pr-4 text-slate-600 @min-[38rem]:table-cell">
+                    <td className="hidden pr-4 text-brio-muted @min-[38rem]:table-cell">
                       {u.title}
                     </td>
-                    <td className="hidden pr-4 text-slate-600 @min-[38rem]:table-cell">
+                    <td className="hidden pr-4 text-brio-muted @min-[38rem]:table-cell">
                       {u.department}
                     </td>
                     <td className="hidden pr-4 font-mono text-xs text-brio-muted @min-[56rem]:table-cell">
@@ -304,7 +261,7 @@ export function UserTable({
                 );
               })}
             </tbody>
-          </table>
+          </RecordsTable>
         </div>
       ) : (
         <EmptyState
@@ -325,31 +282,36 @@ export function UserTable({
         pageSize={PAGE}
         onPageChange={(p) => setPage(p - 1)}
       />
-    </Card>
+    </Container>
   );
 }
 
 function FilterSelect({
   label,
+  allLabel,
   value,
   options,
   onChange,
 }: {
   label: string;
+  allLabel: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
 }) {
   return (
-    <Field label={label}>
-      <Select value={value} onChange={(e) => onChange(e.target.value)} className="capitalize">
-        <option value="">Any</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </Select>
-    </Field>
+    <Select
+      aria-label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="min-w-0 flex-1 basis-28 capitalize @min-[52rem]:w-36 @min-[52rem]:flex-none"
+    >
+      <option value="">{allLabel}</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </Select>
   );
 }

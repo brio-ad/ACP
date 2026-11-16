@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button, Select, cx } from "./ui";
+import { Button, Select } from "./ui";
 
 export function TablePagination({
   label,
@@ -11,7 +11,6 @@ export function TablePagination({
   onPageChange,
   pageSizes,
   autoPageSize,
-  showPageNumbers = false,
   onPageSizeChange,
 }: {
   label: string;
@@ -23,12 +22,9 @@ export function TablePagination({
   onPageChange: (page: number) => void;
   pageSizes?: readonly number[];
   autoPageSize?: boolean;
-  showPageNumbers?: boolean;
   onPageSizeChange?: (size: number) => void;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  const visiblePageCount = Math.min(pages, 5);
-  const firstVisiblePage = Math.max(1, Math.min(page - 2, pages - visiblePageCount + 1));
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
   const range = start === end ? String(start) : start + "–" + end;
@@ -39,13 +35,7 @@ export function TablePagination({
         {total === 1 ? noun : plural}
       </p>
       {(pages > 1 || (total > 0 && pageSizes)) && (
-        <nav
-          aria-label={label}
-          className={cx(
-            "flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2",
-            showPageNumbers && "flex-1 basis-64 justify-between",
-          )}
-        >
+        <nav aria-label={label} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
           {pageSizes && onPageSizeChange && (
             <label className="flex items-center gap-2 text-xs text-brio-muted">
               Rows per page
@@ -73,27 +63,10 @@ export function TablePagination({
             >
               <ChevronLeft aria-hidden className="size-4" />
             </Button>
-            {showPageNumbers ? (
-              Array.from({ length: visiblePageCount }, (_, i) => firstVisiblePage + i).map(
-                (number) => (
-                  <Button
-                    key={number}
-                    size="sm"
-                    variant={page === number ? "primary" : "secondary"}
-                    className="w-8 px-0 tabular-nums"
-                    aria-current={page === number ? "page" : undefined}
-                    aria-label={"Page " + number}
-                    onClick={() => onPageChange(number)}
-                  >
-                    {number}
-                  </Button>
-                ),
-              )
-            ) : (
-              <span className="px-1 text-xs text-brio-muted tabular-nums">
-                Page {page} of {pages}
-              </span>
-            )}
+            <span className="px-1 text-xs text-brio-muted tabular-nums">
+              Page {page} of {pages}
+            </span>
+
             <Button
               size="sm"
               className="w-8 px-0"

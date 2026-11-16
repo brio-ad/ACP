@@ -1,3 +1,4 @@
+import { RecordsTable } from "../../components/RecordsTable";
 import { Fragment, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -175,7 +176,7 @@ export function HistoryTab({
               }
             />
           ) : (
-            <table aria-label="History" className="data-table records-table">
+            <RecordsTable aria-label="History">
               <thead>
                 <tr>
                   <th className="font-medium">Action</th>
@@ -213,7 +214,7 @@ export function HistoryTab({
                               {l.kind === "signature" ? <PenLine /> : <UserCog />}
                             </span>
                             <div className="min-w-0 [overflow-wrap:anywhere]">
-                              <p className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                              <p className="flex flex-wrap items-center gap-2 font-medium text-brio-ink">
                                 {actions[action]}
                                 {canExpand ? (
                                   <span className="flex flex-wrap gap-1">
@@ -229,8 +230,8 @@ export function HistoryTab({
                                   <Badge>Saved locally</Badge>
                                 )}
                               </p>
-                              <div className="mt-1 space-y-0.5 text-xs text-slate-500 @min-[52rem]:hidden">
-                                <p className="font-medium text-slate-700">{target}</p>
+                              <div className="mt-1 space-y-0.5 text-xs text-brio-muted @min-[52rem]:hidden">
+                                <p className="font-medium text-brio-ink">{target}</p>
                                 {l.detail && <p>{l.detail}</p>}
                                 <p>
                                   {l.triggeredBy} · {formatDate(l.startedAt)}
@@ -240,13 +241,13 @@ export function HistoryTab({
                           </div>
                         </td>
                         <td className="hidden py-3 [overflow-wrap:anywhere] @min-[52rem]:table-cell">
-                          <p className="font-medium text-slate-800">{target}</p>
-                          {l.detail && <p className="text-xs text-slate-500">{l.detail}</p>}
+                          <p className="font-medium text-brio-ink">{target}</p>
+                          {l.detail && <p className="text-xs text-brio-muted">{l.detail}</p>}
                         </td>
-                        <td className="hidden py-3 text-slate-600 [overflow-wrap:anywhere] @min-[52rem]:table-cell">
+                        <td className="hidden py-3 text-brio-muted [overflow-wrap:anywhere] @min-[52rem]:table-cell">
                           {l.triggeredBy}
                         </td>
-                        <td className="hidden py-3 text-slate-600 @min-[52rem]:table-cell">
+                        <td className="hidden py-3 text-brio-muted @min-[52rem]:table-cell">
                           <time dateTime={l.startedAt}>{formatDate(l.startedAt)}</time>
                         </td>
                         <td className="py-3">
@@ -288,7 +289,7 @@ export function HistoryTab({
                   );
                 })}
               </tbody>
-            </table>
+            </RecordsTable>
           )}
         </div>
         {logs.length > 0 && (
@@ -327,8 +328,8 @@ function LogDetail({
   const [filter, setFilter] = useState<"all" | ResultStatus>("all");
   const rows = log.results.filter((r) => filter === "all" || r.status === filter);
   return (
-    <div className="max-w-[calc(100cqw-2.5rem)] overflow-hidden rounded-xl bg-white ring-1 ring-slate-200/80">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+    <div className="max-w-[calc(100cqw-2.5rem)] overflow-hidden rounded-brio-panel border border-brio-subtle bg-brio-surface">
+      <div className="records-toolbar flex flex-wrap items-center justify-between gap-3">
         <Segmented
           size="sm"
           value={filter}
@@ -351,7 +352,7 @@ function LogDetail({
           </Button>
         </div>
       </div>
-      <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-600">
+      <p className="border-b border-brio-subtle px-5 py-2 text-xs text-brio-muted">
         {counts(log).applied} applied · {counts(log).skipped} skipped · {counts(log).failed} failed
       </p>
       {log.notification && (
@@ -361,11 +362,22 @@ function LogDetail({
         </p>
       )}
       <div className="max-h-80 overflow-auto">
-        <table className="data-table text-[13px]">
-          <tbody className="divide-y divide-slate-100">
+        <RecordsTable aria-label="Batch results">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th scope="col">
+                <span className="sr-only">Status</span>
+              </th>
+              <th scope="col">User</th>
+              <th scope="col" className="hidden sm:table-cell">
+                Result
+              </th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((r, i) => (
               <tr key={`${r.userId}-${i}`}>
-                <td className="w-8 py-2 pl-4">
+                <td className="w-12">
                   {r.status === "applied" ? (
                     <CheckCircle2 className="size-4 text-emerald-500" />
                   ) : r.status === "skipped" ? (
@@ -374,25 +386,25 @@ function LogDetail({
                     <XCircle className="size-4 text-rose-500" />
                   )}
                 </td>
-                <td className="py-2 pr-4 [overflow-wrap:anywhere]">
-                  <p className="font-medium text-slate-800">{r.name}</p>
-                  <p className="text-slate-500">{r.email}</p>
-                  <p className="text-slate-500 sm:hidden">{r.message}</p>
+                <td className="[overflow-wrap:anywhere]">
+                  <p className="font-medium text-brio-ink">{r.name}</p>
+                  <p className="text-brio-muted">{r.email}</p>
+                  <p className="text-brio-muted sm:hidden">{r.message}</p>
                 </td>
-                <td className="hidden py-2 pr-4 text-slate-500 [overflow-wrap:anywhere] sm:table-cell">
+                <td className="hidden text-brio-muted [overflow-wrap:anywhere] sm:table-cell">
                   {r.message}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={3} className="py-8 text-center text-slate-500">
+                <td colSpan={3} className="py-8 text-center text-brio-muted">
                   No {filter} results in this batch.
                 </td>
               </tr>
             )}
           </tbody>
-        </table>
+        </RecordsTable>
       </div>
     </div>
   );

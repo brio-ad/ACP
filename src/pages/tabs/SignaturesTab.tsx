@@ -1,3 +1,4 @@
+import { RecordsTable } from "../../components/RecordsTable";
 import { useState } from "react";
 import { FileSignature, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { relativeTime, uid, type Template } from "../../data";
@@ -49,7 +50,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
       </div>
       {list.length ? (
         <div className="overflow-x-auto">
-          <table aria-label="Signature templates" className="data-table records-table table-fixed">
+          <RecordsTable aria-label="Signature templates" className="table-fixed">
             <thead>
               <tr>
                 <th scope="col" className="hidden w-16 @min-[42rem]:table-cell">
@@ -107,7 +108,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </RecordsTable>
         </div>
       ) : (
         <EmptyState
@@ -129,7 +130,6 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
             setPageSize(size);
             setPage(1);
           }}
-          showPageNumbers
         />
       )}
       <Modal

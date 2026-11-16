@@ -1,8 +1,9 @@
+import { RecordsTable } from "../../components/RecordsTable";
 import { useState } from "react";
 import { Trash2, UserCog, UserPlus } from "lucide-react";
 import { formatDate, fullName, uid, type Delegation, type DirectoryUser } from "../../data";
 import { useStore, type BatchCommit, type CustomerScope } from "../../store";
-import { FormSection } from "../../components/FormLayout";
+import { TablePagination } from "../../components/TablePagination";
 import {
   Avatar,
   Badge,
@@ -15,10 +16,13 @@ import {
   Select,
 } from "../../components/ui";
 
+const PAGE_SIZE = 15;
+
 export function DelegatesTab({ scope }: { scope: CustomerScope }) {
   const { customer, users, delegations } = scope;
   const { agent, commitBatch, toast } = useStore();
   const [ownerId, setOwnerId] = useState("");
+  const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -31,6 +35,8 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
         .filter((d) => d.ownerId === owner.id || d.ownerId.toLowerCase() === mailbox.toLowerCase())
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     : [];
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / PAGE_SIZE)));
+  const visibleRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const assigned = new Set(rows.map((d) => d.delegateId));
   const mailboxOwners = [...users].sort((a, b) => fullName(a).localeCompare(fullName(b)));
   const available = users.filter(
@@ -96,64 +102,58 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
 
   return (
     <div className="grid gap-5">
-      <FormSection
-        title="Mailbox delegation"
-        description="Select a mailbox owner to see who has access. Changes update demo records only."
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1 basis-56 sm:max-w-lg">
-            <Field label="Mailbox owner">
-              <Select
-                value={ownerId}
-                disabled={!mailboxOwners.length}
-                onChange={(e) => setOwnerId(e.target.value)}
-              >
-                <option value="">
-                  {mailboxOwners.length
-                    ? "Select a user from the directory"
-                    : "No directory users available"}
-                </option>
-                {mailboxOwners.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {fullName(user)} · {user.email}
-                    {user.status === "suspended" ? " (suspended)" : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Button
-            variant="primary"
-            icon={<UserPlus className="size-4" />}
-            disabled={owner?.status !== "active"}
-            onClick={() => {
-              setQuery("");
-              setSelected([]);
-              setAdding(true);
-            }}
-          >
-            Add delegates
-          </Button>
-        </div>
-        {owner?.status === "suspended" && (
-          <p className="mt-3 text-sm text-brio-muted">
-            This mailbox is suspended. You can review or remove existing delegates.
-          </p>
-        )}
-      </FormSection>
-
       <Card className="@container overflow-hidden">
         <div className="records-toolbar">
-          <h2 className="text-base font-semibold tracking-tight">
-            Assigned delegates{" "}
-            <span className="ml-1 text-sm font-normal text-slate-500">
-              {owner ? rows.length : ""}
-            </span>
-          </h2>
+          <p className="mb-3 text-sm text-brio-muted">
+            Select a mailbox owner to see who has access. Changes update demo records only.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-0 flex-1 basis-56 sm:max-w-lg">
+              <Field label="Mailbox owner">
+                <Select
+                  value={ownerId}
+                  disabled={!mailboxOwners.length}
+                  onChange={(event) => {
+                    setOwnerId(event.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">
+                    {mailboxOwners.length
+                      ? "Select a user from the directory"
+                      : "No directory users available"}
+                  </option>
+                  {mailboxOwners.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {fullName(user)} · {user.email}
+                      {user.status === "suspended" ? " (suspended)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Button
+              variant="primary"
+              icon={<UserPlus className="size-4" />}
+              disabled={owner?.status !== "active"}
+              onClick={() => {
+                setQuery("");
+                setSelected([]);
+                setAdding(true);
+              }}
+            >
+              Add delegates
+            </Button>
+          </div>
+          {owner?.status === "suspended" && (
+            <p className="mt-3 text-sm text-brio-muted">
+              This mailbox is suspended. You can review or remove existing delegates.
+            </p>
+          )}
         </div>
         {rows.length ? (
           <div className="overflow-x-auto">
-            <table aria-label="Assigned delegates" className="data-table records-table">
+            <RecordsTable aria-label="Assigned delegates">
               <thead>
                 <tr>
                   <th scope="col">Delegate</th>
@@ -169,7 +169,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((d) => {
+                {visibleRows.map((d) => {
                   const status = d.status ? (
                     <Badge tone={d.status === "active" ? "green" : "amber"}>
                       {d.status === "active" ? "Active" : "Pending"}
@@ -206,7 +206,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
                   );
                 })}
               </tbody>
-            </table>
+            </RecordsTable>
           </div>
         ) : (
           <EmptyState
@@ -217,6 +217,16 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
                 ? "Delegates for this mailbox will appear here."
                 : "Choose a user to see who has access to their mailbox."
             }
+          />
+        )}
+        {owner && (
+          <TablePagination
+            label="Delegate pagination"
+            noun="delegate"
+            total={rows.length}
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
           />
         )}
       </Card>

@@ -300,7 +300,7 @@ function WorkspaceProfile() {
     >
       <summary
         aria-label={"Profile for " + agent.name}
-        className="flex h-full cursor-pointer list-none items-center gap-2 rounded-brio-control border border-brio-subtle px-2 hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus sm:px-3 [&::-webkit-details-marker]:hidden"
+        className="flex h-full cursor-pointer list-none items-center gap-2 rounded-brio-control px-[9px] hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus sm:px-[13px] [&::-webkit-details-marker]:hidden"
       >
         <Avatar name={agent.name} size="sm" />
         <div className="min-w-0">

@@ -1,3 +1,4 @@
+import { RecordsTable } from "../components/RecordsTable";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Building2, ChevronRight } from "lucide-react";
 import { PLANS, directorySize, relativeTime, type CustomerStatus, type Plan } from "../data";
@@ -178,7 +179,7 @@ export function CustomersPage() {
           </div>
         ) : (
           <div ref={viewportRef} className="min-h-0 flex-1 overflow-auto">
-            <table aria-label="Customers" className="data-table records-table customer-table">
+            <RecordsTable aria-label="Customers" className="customer-table">
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th>Customer</th>
@@ -262,7 +263,7 @@ export function CustomersPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </RecordsTable>
           </div>
         )}
         <TablePagination

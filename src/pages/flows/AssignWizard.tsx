@@ -1,17 +1,16 @@
 import { useState, type ReactNode } from "react";
-import { ArrowRight, CalendarClock, Hand, Play } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { selectedUsers, signatureResults, type RecipientSelection } from "../../data";
 import { useCustomer, useStore } from "../../store";
-import { Button, Field, Input, Select } from "../../components/ui";
+import { Button, Card, Field, Input, Select } from "../../components/ui";
 import { SignaturePreview } from "../../components/SignaturePreview";
 import { RecipientPicker } from "../../components/RecipientPicker";
-import { FormSection } from "../../components/FormLayout";
 import { NotifyPicker } from "./NotifyPicker";
 import { ChecksCard, SummaryCard, signatureChecks } from "../../components/Preflight";
 import { BatchModal, type BatchJob } from "../../components/BatchModal";
 import { StepHeading, WizardFrame } from "../../components/WizardFrame";
 
-const STEPS = ["Template and recipients", "Execution", "Review"] as const;
+const STEPS = ["Assignment setup", "Review"] as const;
 const timeZone = "Asia/Kolkata";
 
 export function AssignWizard({
@@ -81,12 +80,8 @@ export function AssignWizard({
   const exit = () => navigate({ name: "customer", id: customerId, tab: "signatures" });
 
   function goTo(next: number) {
-    if (next > 0 && selectionError) {
-      setStep(0);
-      setError(selectionError);
-    } else if (next > 1 && scheduleError) {
-      setStep(1);
-      setError(scheduleError);
+    if (next > 0 && (selectionError || scheduleError)) {
+      setError(selectionError || scheduleError);
     } else {
       setError("");
       setStep(next);
@@ -137,9 +132,9 @@ export function AssignWizard({
       onStep={goTo}
       onExit={exit}
       footerRight={
-        step < 2 ? (
+        step === 0 ? (
           <Button variant="primary" onClick={() => goTo(step + 1)}>
-            {step === 0 ? "Continue" : "Review assignment"} <ArrowRight className="size-4" />
+            Review assignment <ArrowRight className="size-4" />
           </Button>
         ) : (
           <Button
@@ -159,143 +154,115 @@ export function AssignWizard({
         </p>
       )}
       {step === 0 && (
-        <>
-          <div className="grid gap-5">
-            <div className="grid items-end gap-4 @min-[42rem]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-              <StepHeading
-                className=""
-                title="Recipients"
-                description={"Choose who receives this signature in " + customer.domain + "."}
-              />
+        <Card className="@container">
+          <section
+            aria-labelledby="assignment-templates"
+            className="border-b border-brio-subtle p-5"
+          >
+            <h2 id="assignment-templates" className="text-base font-semibold">
+              Signature Templates
+            </h2>
+            <div className="mt-4 grid items-start gap-4 @min-[35rem]:grid-cols-2">
               <Field label="Signature template" required>
                 <Select
                   required
                   aria-invalid={Boolean(error && !template)}
                   value={pickedTemplate}
-                  onChange={(e) => setPickedTemplate(e.target.value)}
+                  onChange={(event) => setPickedTemplate(event.target.value)}
                 >
                   <option value="">Select a template</option>
-                  {usable.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name || "Untitled template"}
+                  {usable.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name || "Untitled template"}
                     </option>
                   ))}
                 </Select>
               </Field>
+              <Field label="When to deploy">
+                <Select
+                  value={execution}
+                  onChange={(event) =>
+                    setExecution(event.target.value === "scheduled" ? "scheduled" : "manual")
+                  }
+                >
+                  <option value="manual">Manual</option>
+                  <option value="scheduled">Scheduled</option>
+                </Select>
+              </Field>
             </div>
-            <RecipientPicker users={users} selection={selection} onChange={setSelection} />
-            <FormSection
-              title="Deployment notifications"
-              description="Choose who should receive an update when a deployment runs. Email delivery is unavailable in this demo."
-            >
-              <div className="grid items-start gap-4 @min-[44rem]:grid-cols-2">
-                <NotifyPicker
-                  customer={customer}
-                  users={users}
-                  value={notify}
-                  onChange={setNotificationSelection}
-                />
-                {!!notify.length && (
-                  <Field label="When to notify">
-                    <Select
-                      value={notifyWhen}
-                      onChange={(e) =>
-                        setNotificationTiming(e.target.value === "errors" ? "errors" : "always")
-                      }
-                    >
-                      <option value="always">After every deployment</option>
-                      <option value="errors">Only when deployment has failures</option>
-                    </Select>
-                  </Field>
-                )}
-              </div>
-            </FormSection>
-          </div>
-        </>
-      )}
-      {step === 1 && (
-        <>
-          <StepHeading
-            title="Choose when to deploy"
-            description="Run manually after review, or configure a daily time and date range for a scheduled deployment."
-          />
-          <div className="grid gap-5">
-            <FormSection title="Execution mode">
-              <fieldset className="grid min-w-0 gap-3 @min-[35rem]:grid-cols-2">
-                <legend className="sr-only">Execution mode</legend>
-                {(
-                  [
-                    ["manual", "Manual", "Start the deployment yourself after review.", Hand],
-                    [
-                      "scheduled",
-                      "Scheduled",
-                      "Set a daily time within a date range.",
-                      CalendarClock,
-                    ],
-                  ] as const
-                ).map(([value, label, description, Icon]) => (
-                  <label
-                    key={value}
-                    className="flex min-w-0 cursor-pointer items-start gap-3 rounded-brio-control border border-brio-border p-3 hover:bg-brio-hover has-checked:border-brio-focus has-checked:bg-brio-primary/10"
-                  >
-                    <input
-                      type="radio"
-                      name="deployment-mode"
-                      className="mt-1 size-4 shrink-0 accent-brio-focus focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus"
-                      checked={execution === value}
-                      onChange={() => setExecution(value)}
+            {execution === "scheduled" && (
+              <div className="mt-4">
+                <div className="grid items-start gap-4 @min-[35rem]:grid-cols-3">
+                  <Field label="Start date" required>
+                    <Input
+                      required
+                      type="date"
+                      min={today}
+                      value={start}
+                      onChange={(event) => setStart(event.target.value)}
                     />
-                    <div className="min-w-0">
-                      <span className="flex items-center gap-2 font-semibold">
-                        <Icon className="size-4 shrink-0" aria-hidden />
-                        {label}
-                      </span>
-                      <p className="mt-1 text-xs text-brio-muted">{description}</p>
-                    </div>
-                  </label>
-                ))}
-              </fieldset>
-              {execution === "scheduled" && (
-                <div className="mt-4 border-t border-brio-subtle pt-4">
-                  <div className="grid items-start gap-4 @min-[35rem]:grid-cols-3">
-                    <Field label="Start date" required>
-                      <Input
-                        required
-                        type="date"
-                        min={today}
-                        value={start}
-                        onChange={(e) => setStart(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="End date" required>
-                      <Input
-                        required
-                        type="date"
-                        min={start || today}
-                        value={end}
-                        onChange={(e) => setEnd(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Daily time (IST)" required>
-                      <Input
-                        required
-                        type="time"
-                        value={time}
-                        onChange={(e) => setTime(e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <p className="mt-4 text-sm text-brio-muted">
-                    You can review these settings. An automatic deployment requires a connected
-                    scheduler.
-                  </p>
+                  </Field>
+                  <Field label="End date" required>
+                    <Input
+                      required
+                      type="date"
+                      min={start || today}
+                      value={end}
+                      onChange={(event) => setEnd(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Daily time (IST)" required>
+                    <Input
+                      required
+                      type="time"
+                      value={time}
+                      onChange={(event) => setTime(event.target.value)}
+                    />
+                  </Field>
                 </div>
+                <p className="mt-2 text-xs text-brio-muted">
+                  Automatic deployment requires a connected scheduler.
+                </p>
+              </div>
+            )}
+          </section>
+          <RecipientPicker users={users} selection={selection} onChange={setSelection} />
+          <section
+            aria-labelledby="assignment-notifications"
+            className="border-t border-brio-subtle p-5"
+          >
+            <h2 id="assignment-notifications" className="text-base font-semibold">
+              Notifications
+            </h2>
+            <p className="mt-1 mb-4 text-sm text-brio-muted">
+              Choose who should receive an update when a deployment runs. Email delivery is
+              unavailable in this demo.
+            </p>
+            <div className="grid items-start gap-4 @min-[44rem]:grid-cols-2">
+              <NotifyPicker
+                customer={customer}
+                users={users}
+                value={notify}
+                onChange={setNotificationSelection}
+              />
+              {!!notify.length && (
+                <Field label="When to notify">
+                  <Select
+                    value={notifyWhen}
+                    onChange={(e) =>
+                      setNotificationTiming(e.target.value === "errors" ? "errors" : "always")
+                    }
+                  >
+                    <option value="always">After every deployment</option>
+                    <option value="errors">Only when deployment has failures</option>
+                  </Select>
+                </Field>
               )}
-            </FormSection>
-          </div>
-        </>
+            </div>
+          </section>
+        </Card>
       )}
-      {step === 2 && template && (
+      {step === 1 && template && (
         <>
           <StepHeading
             title="Review assignment"

@@ -24,45 +24,6 @@ export function WizardFrame({
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 flex-1 flex-col gap-5 p-5">
-        <nav aria-label="Progress" className="px-1 py-1">
-          <ol className="flex flex-wrap items-center gap-2">
-            {steps.map((label, i) => (
-              <li
-                key={label}
-                className={cx(
-                  "flex min-w-0 items-center gap-2",
-                  i < steps.length - 1 && "@min-[40rem]:flex-1",
-                )}
-              >
-                <button
-                  type="button"
-                  aria-current={i === step ? "step" : undefined}
-                  onClick={() => onStep(i)}
-                  className={cx(
-                    "flex items-center gap-2 rounded-brio-control px-1 py-1 text-xs hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-brio-focus",
-                    i === step ? "font-semibold text-brio-ink" : "text-brio-muted",
-                  )}
-                >
-                  <span
-                    className={cx(
-                      "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                      i <= step ? "bg-brio-primary text-brio-ink" : "bg-brio-hover text-brio-muted",
-                    )}
-                  >
-                    {i < step ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
-                  </span>
-                  {label}
-                </button>
-                {i < steps.length - 1 && (
-                  <span
-                    aria-hidden
-                    className="mx-1 hidden h-px flex-1 bg-brio-subtle @min-[40rem]:block"
-                  />
-                )}
-              </li>
-            ))}
-          </ol>
-        </nav>
         <div className="min-w-0 flex-1">{children}</div>
       </div>
       <ActionFooter
@@ -79,7 +40,54 @@ export function WizardFrame({
             {footerLeft}
           </>
         }
-        center={`Step ${step + 1} of ${steps.length}`}
+        center={
+          <nav aria-label="Workflow progress">
+            <ol className="flex flex-wrap items-center justify-center gap-2">
+              {steps.map((label, index) => {
+                const status = index < step ? "Completed" : index === step ? "Current" : "Upcoming";
+                const content = (
+                  <>
+                    <span
+                      aria-hidden
+                      className={cx(
+                        "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold",
+                        status === "Current" && "bg-brio-primary text-brio-ink",
+                        status === "Completed" && "bg-brio-primary/25 text-brio-ink",
+                        status === "Upcoming" && "bg-brio-hover text-brio-muted",
+                      )}
+                    >
+                      {status === "Completed" ? <Check className="size-3.5" /> : index + 1}
+                    </span>
+                    <span className="sr-only">{status}: </span>
+                    {label}
+                  </>
+                );
+                return (
+                  <li key={label} aria-current={index === step ? "step" : undefined}>
+                    {index < step ? (
+                      <button
+                        type="button"
+                        onClick={() => onStep(index)}
+                        className="flex items-center gap-2 rounded-brio-control px-1 py-1 text-xs text-brio-ink hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-brio-focus"
+                      >
+                        {content}
+                      </button>
+                    ) : (
+                      <span
+                        className={cx(
+                          "flex items-center gap-2 px-1 py-1 text-xs",
+                          index === step ? "font-semibold text-brio-ink" : "text-brio-muted",
+                        )}
+                      >
+                        {content}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        }
         right={footerRight}
       />
     </div>

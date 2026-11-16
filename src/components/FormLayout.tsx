@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cx } from "./ui";
 
 export function ActionFooter({
   left,
@@ -22,27 +21,5 @@ export function ActionFooter({
         </div>
       </div>
     </footer>
-  );
-}
-
-export function FormSection({
-  title,
-  description,
-  flush = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  flush?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className="min-w-0 rounded-brio-panel border border-brio-subtle bg-brio-surface">
-      <div className={cx("px-5 pt-5 pb-4", flush && "border-b border-brio-subtle")}>
-        <h2 className="text-base font-semibold text-brio-ink">{title}</h2>
-        {description && <p className="mt-1 text-sm text-brio-muted">{description}</p>}
-      </div>
-      <div className={cx("min-w-0", !flush && "px-5 pb-5")}>{children}</div>
-    </section>
   );
 }

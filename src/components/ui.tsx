@@ -533,7 +533,7 @@ export function Tabs<T extends string>({
               "relative -mb-px flex min-h-10 min-w-0 flex-1 items-center justify-center rounded-t-brio-control border border-transparent border-b-2 px-1 py-2 text-xs font-medium transition-colors duration-120 ease-brio focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brio-focus motion-reduce:transition-none @min-[30rem]:flex-none @min-[30rem]:px-5 @min-[30rem]:text-sm",
               on
                 ? "border-t-brio-subtle border-r-brio-subtle border-b-brio-primary border-l-brio-subtle bg-brio-surface font-semibold text-brio-ink"
-                : "text-brio-muted before:absolute before:inset-y-3 before:left-0 before:w-px before:bg-brio-border first:before:hidden hover:bg-brio-hover hover:text-brio-ink",
+                : "text-brio-muted before:absolute before:inset-y-3 before:left-0 before:w-px before:bg-brio-border first:before:hidden hover:border-b-brio-border hover:bg-brio-hover hover:text-brio-ink",
             )}
           >
             {t.label}
