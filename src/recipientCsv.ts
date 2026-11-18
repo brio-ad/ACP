@@ -1,4 +1,8 @@
-export function parseRecipientCsv(text: string, directory: Map<string, string>) {
+export function parseRecipientCsv(
+  text: string,
+  eligibleUsers: ReadonlyMap<string, string>,
+  directoryEmails?: ReadonlySet<string>,
+) {
   const rows: string[][] = [];
   const clean = text.replace(/^\uFEFF/, "");
   let row: string[] = [];
@@ -57,6 +61,7 @@ export function parseRecipientCsv(text: string, directory: Map<string, string>) 
   const ids = new Set<string>();
   const seen = new Set<string>();
   const unmatched: string[] = [];
+  const ineligible: string[] = [];
   let invalid = 0;
   let duplicates = 0;
   for (const record of emailColumn < 0 ? rows : rows.slice(1)) {
@@ -70,12 +75,13 @@ export function parseRecipientCsv(text: string, directory: Map<string, string>) 
       duplicates++;
     } else {
       seen.add(email);
-      const id = directory.get(email);
+      const id = eligibleUsers.get(email);
       if (id) ids.add(id);
+      else if (directoryEmails?.has(email)) ineligible.push(email);
       else unmatched.push(email);
     }
   }
-  if (!ids.size && !invalid && !duplicates && !unmatched.length)
+  if (!ids.size && !invalid && !duplicates && !unmatched.length && !ineligible.length)
     throw new Error("The CSV contains no recipient records.");
-  return { ids: [...ids], invalid, duplicates, unmatched };
+  return { ids: [...ids], invalid, duplicates, unmatched, ineligible };
 }

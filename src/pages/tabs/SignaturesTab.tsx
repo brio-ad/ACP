@@ -1,36 +1,29 @@
-import { RecordsTable } from "../../components/RecordsTable";
+import { RecordsHeading, RecordsTable, RecordsViewport } from "../../components/RecordsTable";
 import { useState } from "react";
 import { FileSignature, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { relativeTime, uid, type Template } from "../../data";
 import { useStore, type CustomerScope } from "../../store";
-import { TablePagination } from "../../components/TablePagination";
+import { TablePagination, useTablePage } from "../../components/TablePagination";
 import { Button, Card, EmptyState, IconButton, Modal } from "../../components/ui";
-
-const pageSizes = [5, 10, 25];
 
 export function SignaturesTab({ scope }: { scope: CustomerScope }) {
   const { customer, templates } = scope;
   const { navigate, deleteTemplate, toast } = useStore();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [confirm, setConfirm] = useState<Template | null>(null);
   const openTemplate = (templateId: string) =>
     navigate({ name: "template", customerId: customer.id, templateId });
   const assign = () => navigate({ name: "assign", customerId: customer.id });
   const list = [...templates].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-  const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / pageSize)));
-  const start = (currentPage - 1) * pageSize;
+  const { start, visibleRows, pagination, viewportRef } = useTablePage(list);
 
   return (
-    <Card className="@container overflow-hidden">
-      <div className="records-toolbar flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Signature templates</h2>
-          <p className="mt-0.5 text-sm text-brio-muted">
-            Manage reusable signatures for {customer.domain}.
-          </p>
-        </div>
+    <Card className="@container flex min-h-min flex-1 flex-col overflow-hidden">
+      <div className="records-toolbar flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <RecordsHeading
+          title="Signature templates"
+          description={`Manage reusable signatures for ${customer.domain}.`}
+        />
         <div className="flex flex-wrap items-center gap-2">
           <Button
             icon={<Send className="size-4" />}
@@ -49,7 +42,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
         </div>
       </div>
       {list.length ? (
-        <div className="overflow-x-auto">
+        <RecordsViewport ref={viewportRef} fill>
           <RecordsTable aria-label="Signature templates" className="table-fixed">
             <thead>
               <tr>
@@ -71,7 +64,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
               </tr>
             </thead>
             <tbody>
-              {list.slice(start, start + pageSize).map((template, index) => (
+              {visibleRows.map((template, index) => (
                 <tr key={template.id}>
                   <td className="hidden text-brio-muted tabular-nums @min-[42rem]:table-cell">
                     {start + index + 1}
@@ -109,7 +102,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
               ))}
             </tbody>
           </RecordsTable>
-        </div>
+        </RecordsViewport>
       ) : (
         <EmptyState
           icon={<FileSignature className="size-5" />}
@@ -118,19 +111,7 @@ export function SignaturesTab({ scope }: { scope: CustomerScope }) {
         />
       )}
       {list.length > 0 && (
-        <TablePagination
-          label="Signature template pagination"
-          noun="template"
-          total={list.length}
-          page={currentPage}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          pageSizes={pageSizes}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPage(1);
-          }}
-        />
+        <TablePagination label="Signature template pagination" noun="template" {...pagination} />
       )}
       <Modal
         open={!!confirm}

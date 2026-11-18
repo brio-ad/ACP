@@ -1,4 +1,4 @@
-import { RecordsTable } from "../../components/RecordsTable";
+import { RecordsHeading, RecordsTable, RecordsViewport } from "../../components/RecordsTable";
 import { Fragment, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -19,11 +19,18 @@ import {
   type ResultStatus,
 } from "../../data";
 import { type CustomerScope } from "../../store";
-import { Badge, Button, Card, EmptyState, SearchInput, Segmented, cx } from "../../components/ui";
-import { TablePagination } from "../../components/TablePagination";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  SearchInput,
+  Segmented,
+  Select,
+  cx,
+} from "../../components/ui";
+import { TablePagination, useTablePage } from "../../components/TablePagination";
 import { BatchModal, type BatchJob } from "../../components/BatchModal";
-
-const PAGE_SIZE = 15;
 
 const counts = (l: LogEntry) => ({
   applied: l.results.filter((r) => r.status === "applied").length,
@@ -80,12 +87,13 @@ export function HistoryTab({
     [logs, tab, q],
   );
 
-  const [page, setPage] = useState(() => {
-    const index = initialLogId ? list.findIndex((log) => log.id === initialLogId) : -1;
-    return index < 0 ? 1 : Math.floor(index / PAGE_SIZE) + 1;
-  });
-  const currentPage = Math.min(page, Math.max(1, Math.ceil(list.length / PAGE_SIZE)));
-  const visible = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const initialIndex = initialLogId ? list.findIndex((log) => log.id === initialLogId) : -1;
+  const {
+    visibleRows: visible,
+    pagination,
+    resetPage,
+    viewportRef,
+  } = useTablePage(list, Math.max(0, initialIndex));
 
   function exportCsv(l: LogEntry) {
     const rows = [
@@ -136,9 +144,15 @@ export function HistoryTab({
   }
 
   return (
-    <div>
-      <Card className="overflow-hidden">
-        <div className="records-toolbar flex flex-wrap items-center gap-3">
+    <>
+      <Card className="@container flex min-h-min flex-1 flex-col overflow-hidden">
+        <div className="records-toolbar flex shrink-0 flex-wrap items-center gap-3">
+          <div className="w-full min-w-0">
+            <RecordsHeading
+              title="Activity history"
+              description={`Review signature and delegation activity for ${customer.domain}.`}
+            />
+          </div>
           <SearchInput
             className="min-w-0 flex-1 basis-48"
             label="Search history"
@@ -146,36 +160,37 @@ export function HistoryTab({
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
-              setPage(1);
+              resetPage();
             }}
           />
-          <Segmented
+          <Select
+            aria-label="Filter history"
+            className="w-auto min-w-36"
             value={tab}
-            onChange={(value) => {
-              setTab(value);
-              setPage(1);
+            onChange={(event) => {
+              setTab(event.target.value as typeof tab);
+              resetPage();
             }}
-            options={[
-              { value: "all", label: `All ${logs.length}` },
-              { value: "signature", label: "Signatures" },
-              { value: "delegation", label: "Delegates" },
-              { value: "failed", label: "With failures" },
-            ]}
-          />
+          >
+            <option value="all">All {logs.length}</option>
+            <option value="signature">Signatures</option>
+            <option value="delegation">Delegates</option>
+            <option value="failed">With failures</option>
+          </Select>
         </div>
 
-        <div className="@container">
-          {list.length === 0 ? (
-            <EmptyState
-              icon={<History className="size-5" />}
-              title={logs.length ? "No matching activity" : "No activity yet"}
-              description={
-                logs.length
-                  ? "Try a different search or filter."
-                  : "Template, signature, and delegate activity will appear here."
-              }
-            />
-          ) : (
+        {list.length === 0 ? (
+          <EmptyState
+            icon={<History className="size-5" />}
+            title={logs.length ? "No matching activity" : "No activity yet"}
+            description={
+              logs.length
+                ? "Try a different search or filter."
+                : "Template, signature, and delegate activity will appear here."
+            }
+          />
+        ) : (
+          <RecordsViewport ref={viewportRef} fill>
             <RecordsTable aria-label="History">
               <thead>
                 <tr>
@@ -290,17 +305,14 @@ export function HistoryTab({
                 })}
               </tbody>
             </RecordsTable>
-          )}
-        </div>
+          </RecordsViewport>
+        )}
         {logs.length > 0 && (
           <TablePagination
             label="History pagination"
             noun="entry"
             plural="entries"
-            total={list.length}
-            page={currentPage}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
+            {...pagination}
           />
         )}
       </Card>
@@ -309,10 +321,10 @@ export function HistoryTab({
         onClose={() => setJob(null)}
         onDone={(l) => {
           setOpen(l.id);
-          setPage(1);
+          resetPage();
         }}
       />
-    </div>
+    </>
   );
 }
 
@@ -326,14 +338,18 @@ function LogDetail({
   onRetry?: () => void;
 }) {
   const [filter, setFilter] = useState<"all" | ResultStatus>("all");
-  const rows = log.results.filter((r) => filter === "all" || r.status === filter);
+  const filtered = log.results.filter((r) => filter === "all" || r.status === filter);
+  const { visibleRows: rows, pagination, resetPage, viewportRef } = useTablePage(filtered);
   return (
     <div className="max-w-[calc(100cqw-2.5rem)] overflow-hidden rounded-brio-panel border border-brio-subtle bg-brio-surface">
       <div className="records-toolbar flex flex-wrap items-center justify-between gap-3">
         <Segmented
           size="sm"
           value={filter}
-          onChange={setFilter}
+          onChange={(value) => {
+            setFilter(value);
+            resetPage();
+          }}
           options={[
             { value: "all", label: `All ${log.results.length}` },
             { value: "applied", label: "Applied" },
@@ -361,9 +377,9 @@ function LogDetail({
           this demo.
         </p>
       )}
-      <div className="max-h-80 overflow-auto">
+      <RecordsViewport ref={viewportRef} className="max-h-[min(30dvh,20rem)] overscroll-y-auto">
         <RecordsTable aria-label="Batch results">
-          <thead className="sticky top-0 z-10">
+          <thead>
             <tr>
               <th scope="col">
                 <span className="sr-only">Status</span>
@@ -405,7 +421,8 @@ function LogDetail({
             )}
           </tbody>
         </RecordsTable>
-      </div>
+      </RecordsViewport>
+      <TablePagination label="Batch results pagination" noun="result" {...pagination} />
     </div>
   );
 }

@@ -1,16 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, ChevronDown, Eye } from "lucide-react";
 import { selectedUsers, signatureResults, type RecipientSelection } from "../../data";
 import { useCustomer, useStore } from "../../store";
-import { Button, Card, Field, Input, Select } from "../../components/ui";
+import { Badge, Button, Card, Field, Input, Select } from "../../components/ui";
 import { SignaturePreview } from "../../components/SignaturePreview";
 import { RecipientPicker } from "../../components/RecipientPicker";
-import { NotifyPicker } from "./NotifyPicker";
-import { ChecksCard, SummaryCard, signatureChecks } from "../../components/Preflight";
+import { AssignmentChecks, AssignmentSummary, signatureChecks } from "../../components/Preflight";
 import { BatchModal, type BatchJob } from "../../components/BatchModal";
 import { StepHeading, WizardFrame } from "../../components/WizardFrame";
 
-const STEPS = ["Assignment setup", "Review"] as const;
 const timeZone = "Asia/Kolkata";
 
 export function AssignWizard({
@@ -30,8 +28,6 @@ export function AssignWizard({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [time, setTime] = useState("09:00");
-  const [notificationSelection, setNotificationSelection] = useState<string[] | null>(null);
-  const [notificationTiming, setNotificationTiming] = useState<"always" | "errors" | null>(null);
   const [previewId, setPreviewId] = useState("");
   const [error, setError] = useState("");
   const [job, setJob] = useState<BatchJob | null>(null);
@@ -39,6 +35,8 @@ export function AssignWizard({
 
   const template = usable.find((t) => t.id === pickedTemplate);
   const recipients = selectedUsers(selection, users);
+  const recipientCount = recipients.length;
+  const entireDirectorySelected = users.length > 0 && recipientCount === users.length;
   const checks = signatureChecks(customer, template?.html ?? "", recipients, assignments);
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone }).format(new Date());
   const target = selection.all
@@ -55,18 +53,17 @@ export function AssignWizard({
     execution === "scheduled" && (!start || !end || !time || start < today || end < start)
       ? "Enter a daily time and a date range that starts today or later."
       : "";
-  const notify = notificationSelection ?? template?.notify ?? [];
-  const notifyWhen = notificationTiming ?? template?.notifyWhen ?? "always";
+  const notify = template?.notify ?? [];
+  const notifyWhen = template?.notifyWhen ?? "always";
   const notifyRows: [string, ReactNode][] = [
     [
       "Notifications",
       notify.length ? (
         <div>
-          <p>
-            {notifyWhen === "errors" ? "On failures only" : "After deployment"} · email unavailable
-            in demo
+          <p className="font-medium">
+            {notifyWhen === "errors" ? "On failures only" : "After deployment"}
           </p>
-          <ul className="mt-1 text-brio-muted">
+          <ul className="mt-1 flex max-h-32 flex-col gap-1 overflow-auto overscroll-contain text-sm text-brio-muted">
             {notify.map((email) => (
               <li key={email}>{email}</li>
             ))}
@@ -78,6 +75,12 @@ export function AssignWizard({
     ],
   ];
   const exit = () => navigate({ name: "customer", id: customerId, tab: "signatures" });
+
+  function back() {
+    if (step > 0) goTo(step - 1);
+    else if (templateId) navigate({ name: "template", customerId, templateId });
+    else exit();
+  }
 
   function goTo(next: number) {
     if (next > 0 && (selectionError || scheduleError)) {
@@ -127,43 +130,46 @@ export function AssignWizard({
 
   return (
     <WizardFrame
-      steps={STEPS}
-      step={step}
-      onStep={goTo}
-      onExit={exit}
+      stepNumber={step + 2}
+      onBack={back}
+      onExit={step > 0 ? exit : undefined}
+      fitTable={step === 0}
       footerRight={
         step === 0 ? (
-          <Button variant="primary" onClick={() => goTo(step + 1)}>
-            Review assignment <ArrowRight className="size-4" />
-          </Button>
+          <>
+            <p role="status" className="text-xs text-brio-muted">
+              {entireDirectorySelected
+                ? `Entire directory selected (${recipientCount.toLocaleString()})`
+                : `${recipientCount.toLocaleString()} selected`}
+            </p>
+            <Button variant="primary" onClick={() => goTo(step + 1)}>
+              Review assignment <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          </>
         ) : (
           <Button
             variant="primary"
-            icon={<Play className="size-4" />}
             disabled={execution === "scheduled" || checks.some((c) => c.status === "fail")}
             onClick={deploy}
           >
-            {execution === "scheduled" ? "Scheduler unavailable" : "Run demo deployment"}
+            Assign signature
           </Button>
         )
       }
     >
       {error && (
-        <p role="alert" className="mb-4 text-sm text-brio-danger-ink">
+        <p role="alert" className="mb-4 shrink-0 text-sm text-brio-danger-ink">
           {error}
         </p>
       )}
       {step === 0 && (
-        <Card className="@container">
+        <Card className="@container flex min-h-min flex-1 flex-col">
           <section
-            aria-labelledby="assignment-templates"
-            className="border-b border-brio-subtle p-5"
+            aria-label="Deployment setup"
+            className="shrink-0 border-b border-brio-subtle p-5"
           >
-            <h2 id="assignment-templates" className="text-base font-semibold">
-              Signature Templates
-            </h2>
-            <div className="mt-4 grid items-start gap-4 @min-[35rem]:grid-cols-2">
-              <Field label="Signature template" required>
+            <div className="grid items-start gap-4 @min-[35rem]:grid-cols-2">
+              <Field label="Template name" required>
                 <Select
                   required
                   aria-invalid={Boolean(error && !template)}
@@ -199,7 +205,7 @@ export function AssignWizard({
                       type="date"
                       min={today}
                       value={start}
-                      onChange={(event) => setStart(event.target.value)}
+                      onInput={(event) => setStart(event.currentTarget.value)}
                     />
                   </Field>
                   <Field label="End date" required>
@@ -208,7 +214,7 @@ export function AssignWizard({
                       type="date"
                       min={start || today}
                       value={end}
-                      onChange={(event) => setEnd(event.target.value)}
+                      onInput={(event) => setEnd(event.currentTarget.value)}
                     />
                   </Field>
                   <Field label="Daily time (IST)" required>
@@ -216,7 +222,7 @@ export function AssignWizard({
                       required
                       type="time"
                       value={time}
-                      onChange={(event) => setTime(event.target.value)}
+                      onInput={(event) => setTime(event.currentTarget.value)}
                     />
                   </Field>
                 </div>
@@ -227,94 +233,93 @@ export function AssignWizard({
             )}
           </section>
           <RecipientPicker users={users} selection={selection} onChange={setSelection} />
-          <section
-            aria-labelledby="assignment-notifications"
-            className="border-t border-brio-subtle p-5"
-          >
-            <h2 id="assignment-notifications" className="text-base font-semibold">
-              Notifications
-            </h2>
-            <p className="mt-1 mb-4 text-sm text-brio-muted">
-              Choose who should receive an update when a deployment runs. Email delivery is
-              unavailable in this demo.
-            </p>
-            <div className="grid items-start gap-4 @min-[44rem]:grid-cols-2">
-              <NotifyPicker
-                customer={customer}
-                users={users}
-                value={notify}
-                onChange={setNotificationSelection}
-              />
-              {!!notify.length && (
-                <Field label="When to notify">
-                  <Select
-                    value={notifyWhen}
-                    onChange={(e) =>
-                      setNotificationTiming(e.target.value === "errors" ? "errors" : "always")
-                    }
-                  >
-                    <option value="always">After every deployment</option>
-                    <option value="errors">Only when deployment has failures</option>
-                  </Select>
-                </Field>
-              )}
-            </div>
-          </section>
         </Card>
       )}
       {step === 1 && template && (
-        <>
-          <StepHeading
-            title="Review assignment"
-            description={
-              execution === "scheduled"
-                ? "Scheduling is unavailable. No deployment will be queued."
-                : "This demo updates the local assignment records only. Gmail mailboxes and email notifications are unaffected."
-            }
-          />
-          <div className="flow-columns">
-            <div className="grid min-w-0 gap-4">
-              <SummaryCard
-                rows={[
-                  ["Template", template.name || "Untitled template"],
-                  [
-                    "Recipients",
-                    recipients.length === 1 ? (
-                      target
-                    ) : (
-                      <details>
-                        <summary className="cursor-pointer">{target}</summary>
-                        <ul className="mt-2 max-h-44 overflow-auto text-brio-muted">
-                          {recipients.map((u) => (
-                            <li key={u.id}>{u.email}</li>
-                          ))}
-                        </ul>
-                      </details>
-                    ),
-                  ],
-                  [
-                    "Execution",
-                    execution === "manual"
-                      ? "Manual"
-                      : `Scheduled · daily at ${time} IST · ${start} to ${end}`,
-                  ],
-                  ...notifyRows,
-                ]}
-              />
-              {checks.length > 0 && <ChecksCard checks={checks} />}
-            </div>
-            <SignaturePreview
-              title="Recipient preview"
-              html={template.html}
-              customer={customer}
-              users={recipients}
-              userId={
-                recipients.some((u) => u.id === previewId) ? previewId : (recipients[0]?.id ?? "")
-              }
-              onUserChange={setPreviewId}
+        <Card className="@container flex w-full min-w-0 flex-col gap-6 p-5">
+          <div className="flex flex-col gap-2">
+            <StepHeading
+              title="Review assignment"
+              className=""
+              description="Review the assignment details and check for any issues before proceeding."
             />
+            <p className="text-xs text-brio-muted">
+              {execution === "scheduled"
+                ? "Scheduling is unavailable. No deployment will be queued."
+                : "This demo updates the local assignment records only. Gmail mailboxes and email notifications are unaffected."}
+            </p>
           </div>
-        </>
+          <AssignmentSummary
+            rows={[
+              [
+                "Template",
+                <span className="font-semibold">{template.name || "Untitled template"}</span>,
+              ],
+              [
+                recipients.length === 1 ? "Recipient" : "Recipients",
+                recipients.length === 1 ? (
+                  target
+                ) : (
+                  <details>
+                    <summary className="cursor-pointer rounded-brio-control font-medium focus-visible:outline-2 focus-visible:outline-brio-focus">
+                      {target}
+                    </summary>
+                    <ul className="mt-3 flex max-h-44 flex-col gap-2 overflow-auto overscroll-contain rounded-brio-control border border-brio-subtle bg-brio-surface p-3 text-sm text-brio-muted">
+                      {recipients.map((u) => (
+                        <li key={u.id}>{u.email}</li>
+                      ))}
+                    </ul>
+                  </details>
+                ),
+              ],
+              [
+                "Deployment",
+                <div>
+                  <Badge>{execution === "manual" ? "Manual" : "Scheduled"}</Badge>
+                  {execution === "scheduled" && (
+                    <p className="mt-2 text-brio-muted">
+                      Daily at {time} IST
+                      <span className="block">
+                        {start} to {end}
+                      </span>
+                    </p>
+                  )}
+                </div>,
+              ],
+              ...notifyRows,
+            ]}
+          />
+          <div className="border-t border-brio-subtle pt-5">
+            <AssignmentChecks checks={checks} />
+          </div>
+          <details open className="group min-w-0 border-t border-brio-subtle pt-4">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-brio-control text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus [&::-webkit-details-marker]:hidden">
+              <Eye className="size-4 text-brio-muted" aria-hidden />
+              Preview email
+              <ChevronDown
+                className="ml-auto size-4 text-brio-muted group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <div className="mt-3 max-h-[min(60dvh,36rem)] overflow-auto overscroll-contain rounded-brio-panel border border-brio-subtle">
+              <SignaturePreview
+                title=""
+                html={template.html}
+                customer={customer}
+                users={recipients}
+                userId={
+                  recipients.some((u) => u.id === previewId) ? previewId : (recipients[0]?.id ?? "")
+                }
+                onUserChange={setPreviewId}
+              />
+            </div>
+          </details>
+          <p className="text-xs text-brio-muted">
+            {execution === "scheduled"
+              ? "Connect a scheduler to enable scheduled assignments."
+              : `Confirming assigns this signature to ${recipientCount.toLocaleString()} selected ${recipientCount === 1 ? "recipient" : "recipients"} in the demo records. Suspended accounts are skipped.`}
+          </p>
+        </Card>
       )}
       <BatchModal
         job={job}

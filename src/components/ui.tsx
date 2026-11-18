@@ -247,14 +247,24 @@ const AVATAR_COLORS = [
   "bg-indigo-100 text-indigo-800",
 ];
 
-export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+export function Avatar({
+  name,
+  size = "md",
+  tone = "color",
+}: {
+  name: string;
+  size?: "sm" | "md";
+  tone?: "color" | "neutral";
+}) {
   const initials = name
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)
     .join("");
   const color =
-    AVATAR_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
+    tone === "neutral"
+      ? "bg-brio-ink text-white"
+      : AVATAR_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
   return (
     <span
       className={cx(

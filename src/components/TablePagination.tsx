@@ -1,5 +1,38 @@
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button, Select } from "./ui";
+
+export const TABLE_PAGE_SIZES = [5, 10, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
+export function useTablePage<T>(rows: readonly T[], initialRowIndex = 0) {
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(() => Math.floor(initialRowIndex / DEFAULT_PAGE_SIZE) + 1);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)));
+  const start = (currentPage - 1) * pageSize;
+  function changePage(page: number) {
+    setPage(page);
+    viewportRef.current?.scrollTo({ top: 0 });
+  }
+
+  return {
+    start,
+    visibleRows: rows.slice(start, start + pageSize),
+    viewportRef,
+    resetPage: () => changePage(1),
+    pagination: {
+      total: rows.length,
+      page: currentPage,
+      pageSize,
+      onPageChange: changePage,
+      onPageSizeChange: (size: number) => {
+        setPageSize(size);
+        changePage(1);
+      },
+    },
+  };
+}
 
 export function TablePagination({
   label,
@@ -9,7 +42,6 @@ export function TablePagination({
   page,
   pageSize,
   onPageChange,
-  pageSizes,
   autoPageSize,
   onPageSizeChange,
 }: {
@@ -20,7 +52,6 @@ export function TablePagination({
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
-  pageSizes?: readonly number[];
   autoPageSize?: boolean;
   onPageSizeChange?: (size: number) => void;
 }) {
@@ -34,9 +65,9 @@ export function TablePagination({
         {total ? range + " of " + total + " " : "0 "}
         {total === 1 ? noun : plural}
       </p>
-      {(pages > 1 || (total > 0 && pageSizes)) && (
+      {(pages > 1 || onPageSizeChange) && (
         <nav aria-label={label} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-          {pageSizes && onPageSizeChange && (
+          {onPageSizeChange && (
             <label className="flex items-center gap-2 text-xs text-brio-muted">
               Rows per page
               <Select
@@ -45,7 +76,7 @@ export function TablePagination({
                 onChange={(event) => onPageSizeChange(Number(event.target.value))}
               >
                 {autoPageSize !== undefined && <option value={0}>Auto</option>}
-                {pageSizes.map((size) => (
+                {TABLE_PAGE_SIZES.map((size) => (
                   <option value={size} key={size}>
                     {size}
                   </option>

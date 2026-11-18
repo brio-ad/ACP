@@ -1,8 +1,8 @@
-import { RecordsTable } from "./RecordsTable";
+import { RecordsTable, RecordsViewport } from "./RecordsTable";
 import { useMemo, useState, type ReactNode } from "react";
 import { Users } from "lucide-react";
 import { fullName, type DirectoryUser, type RecipientSelection } from "../data";
-import { TablePagination } from "./TablePagination";
+import { TablePagination, useTablePage } from "./TablePagination";
 import { Avatar, Badge, Button, Card, Checkbox, EmptyState, SearchInput, Select, cx } from "./ui";
 
 export interface Filters {
@@ -11,7 +11,6 @@ export interface Filters {
   status: string;
 }
 const EMPTY: Filters = { department: "", orgUnit: "", status: "" };
-const PAGE = 15;
 
 export interface ExtraColumn {
   header: string;
@@ -24,8 +23,16 @@ export function UserTable({
   selection,
   onSelectionChange,
   toolbarActions,
+  toolbarHeading,
+  filterAction,
+  showOrgUnitFilter = true,
+  showOrgUnitColumn = true,
+  limitSelectionTableHeight = true,
   heading,
   embedded = false,
+  tableLabel,
+  emptyTitle = "Directory unavailable",
+  emptyDescription = "No users are available for this customer.",
   extraColumns = [],
   rowAction,
   banner,
@@ -34,15 +41,22 @@ export function UserTable({
   selection?: RecipientSelection;
   onSelectionChange?: (s: RecipientSelection) => void;
   toolbarActions?: ReactNode;
+  toolbarHeading?: ReactNode;
+  filterAction?: ReactNode;
+  showOrgUnitFilter?: boolean;
+  showOrgUnitColumn?: boolean;
+  limitSelectionTableHeight?: boolean;
   heading?: ReactNode;
   embedded?: boolean;
+  tableLabel?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
   extraColumns?: ExtraColumn[];
   rowAction?: (u: DirectoryUser) => ReactNode;
   banner?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY);
-  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -55,9 +69,7 @@ export function UserTable({
     );
   }, [users, query, filters]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
-  const currentPage = Math.min(page, pages - 1);
-  const rows = filtered.slice(currentPage * PAGE, currentPage * PAGE + PAGE);
+  const { visibleRows: rows, pagination, resetPage, viewportRef } = useTablePage(filtered);
   const hasFilters = Object.values(filters).some(Boolean);
   const narrowed = Boolean(query.trim()) || hasFilters;
 
@@ -93,19 +105,20 @@ export function UserTable({
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((previous) => ({ ...previous, [key]: value }));
-    setPage(0);
+    resetPage();
   }
 
   const Container = embedded ? "div" : Card;
   return (
-    <Container className="@container min-w-0">
-      <div className="records-toolbar flex flex-wrap items-center gap-3">
+    <Container className="@container flex min-h-min min-w-0 flex-1 flex-col">
+      <div className="records-toolbar flex shrink-0 flex-wrap items-center gap-3">
+        {toolbarHeading && <div className="w-full min-w-0">{toolbarHeading}</div>}
         <SearchInput
           value={query}
           label="Search directory users"
           onChange={(event) => {
             setQuery(event.target.value);
-            setPage(0);
+            resetPage();
           }}
           placeholder="Search by name, email or title"
           className="min-w-0 flex-1 basis-56"
@@ -118,13 +131,15 @@ export function UserTable({
             options={departments}
             onChange={(value) => updateFilter("department", value)}
           />
-          <FilterSelect
-            label="Organizational unit"
-            allLabel="All org units"
-            value={filters.orgUnit}
-            options={orgUnits}
-            onChange={(value) => updateFilter("orgUnit", value)}
-          />
+          {showOrgUnitFilter && (
+            <FilterSelect
+              label="Organizational unit"
+              allLabel="All org units"
+              value={filters.orgUnit}
+              options={orgUnits}
+              onChange={(value) => updateFilter("orgUnit", value)}
+            />
+          )}
           <FilterSelect
             label="Account status"
             allLabel="All statuses"
@@ -138,28 +153,35 @@ export function UserTable({
               onClick={() => {
                 setQuery("");
                 setFilters(EMPTY);
-                setPage(0);
+                resetPage();
               }}
             >
               Clear
             </Button>
           )}
         </div>
+        {filterAction && <div className="ml-auto shrink-0">{filterAction}</div>}
       </div>
       {(heading || toolbarActions) && (
-        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 px-5 py-3">
           {heading && <div className="min-w-0 flex-1 basis-64">{heading}</div>}
           {toolbarActions && (
             <div className="ml-auto flex flex-wrap items-center gap-2">{toolbarActions}</div>
           )}
         </div>
       )}
-      <div className="px-5 pt-3 empty:hidden">{banner}</div>
+      <div className="shrink-0 px-5 pt-3 empty:hidden">{banner}</div>
 
       {rows.length ? (
-        <div className={cx("overflow-auto", selectable && "max-h-[min(48dvh,28rem)]")}>
-          <RecordsTable aria-label={selectable ? "Signature recipients" : "Workspace directory"}>
-            <thead className={selectable ? "sticky top-0 z-10" : undefined}>
+        <RecordsViewport
+          ref={viewportRef}
+          fill={!selectable || !limitSelectionTableHeight}
+          className={selectable && limitSelectionTableHeight ? "max-h-[min(38dvh,24rem)]" : undefined}
+        >
+          <RecordsTable
+            aria-label={tableLabel ?? (selectable ? "Signature recipients" : "Workspace directory")}
+          >
+            <thead>
               <tr>
                 {selectable && (
                   <th className="w-12">
@@ -174,7 +196,9 @@ export function UserTable({
                 <th scope="col">User</th>
                 <th className="hidden font-medium @min-[38rem]:table-cell">Title</th>
                 <th className="hidden font-medium @min-[38rem]:table-cell">Department</th>
-                <th className="hidden font-medium @min-[56rem]:table-cell">Org unit</th>
+                {showOrgUnitColumn && (
+                  <th className="hidden font-medium @min-[56rem]:table-cell">Org unit</th>
+                )}
                 {extraColumns.map((c) => (
                   <th key={c.header} className={cx("font-medium", c.className)}>
                     {c.header}
@@ -219,7 +243,7 @@ export function UserTable({
                           <p className="mt-0.5 text-xs text-brio-muted @min-[38rem]:hidden">
                             {u.title} · {u.department}
                           </p>
-                          {!selectable && u.orgUnit && (
+                          {showOrgUnitColumn && !selectable && u.orgUnit && (
                             <p className="mt-1 text-xs text-brio-muted @min-[56rem]:hidden">
                               {u.orgUnit}
                             </p>
@@ -233,9 +257,11 @@ export function UserTable({
                     <td className="hidden pr-4 text-brio-muted @min-[38rem]:table-cell">
                       {u.department}
                     </td>
-                    <td className="hidden pr-4 font-mono text-xs text-brio-muted @min-[56rem]:table-cell">
-                      {u.orgUnit}
-                    </td>
+                    {showOrgUnitColumn && (
+                      <td className="hidden pr-4 font-mono text-xs text-brio-muted @min-[56rem]:table-cell">
+                        {u.orgUnit}
+                      </td>
+                    )}
                     {extraColumns.map((c) => (
                       <td key={c.header} className={cx("pr-4", c.className)}>
                         {c.render(u)}
@@ -262,26 +288,15 @@ export function UserTable({
               })}
             </tbody>
           </RecordsTable>
-        </div>
+        </RecordsViewport>
       ) : (
         <EmptyState
           icon={<Users className="size-5" />}
-          title={users.length ? "No matching users" : "Directory unavailable"}
-          description={
-            users.length
-              ? "Try another search or clear the filters."
-              : "No users are available for this customer."
-          }
+          title={users.length ? "No matching users" : emptyTitle}
+          description={users.length ? "Try another search or clear the filters." : emptyDescription}
         />
       )}
-      <TablePagination
-        label="Directory pagination"
-        noun="user"
-        total={filtered.length}
-        page={currentPage + 1}
-        pageSize={PAGE}
-        onPageChange={(p) => setPage(p - 1)}
-      />
+      <TablePagination label="Directory pagination" noun="user" {...pagination} />
     </Container>
   );
 }

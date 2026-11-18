@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import {
   VARIABLES,
   fullName,
@@ -9,7 +9,7 @@ import {
   type Customer,
   type DirectoryUser,
 } from "../data";
-import { Card } from "./ui";
+import { Badge } from "./ui";
 
 export type PreCheck = { status: "warn" | "fail"; title: string; detail: string };
 
@@ -101,53 +101,73 @@ export function signatureChecks(
   return checks.filter((check): check is PreCheck => check !== null);
 }
 
-export function ChecksCard({ checks }: { checks: PreCheck[] }) {
+export function AssignmentChecks({ checks }: { checks: PreCheck[] }) {
   const warn = checks.filter((c) => c.status === "warn").length;
   const fail = checks.filter((c) => c.status === "fail").length;
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
-        <h2 className="text-sm font-semibold">Assignment checks</h2>
-        <span className="text-xs text-slate-500">
+    <section aria-labelledby="assignment-checks" className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="assignment-checks" className="text-base font-semibold">
+          Assignment checks
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
           {fail ? (
-            <span className="font-medium text-rose-600">{fail} blocking</span>
+            <Badge tone="rose">{plural(fail, "blocking issue")}</Badge>
           ) : (
-            "No blocking issues"
+            <span className="inline-flex items-center gap-1.5 text-xs text-brio-success-ink">
+              <CheckCircle2 className="size-4" aria-hidden /> No blocking issues
+            </span>
           )}
-          {warn > 0 && <span className="text-amber-600"> · {plural(warn, "warning")}</span>}
-        </span>
+          {warn > 0 && <Badge tone="amber">{plural(warn, "warning")}</Badge>}
+        </div>
       </div>
-      <ul className="divide-y divide-slate-100">
-        {checks.map((c, i) => (
-          <li key={i} className="flex gap-3 px-5 py-3">
-            {c.status === "warn" ? (
-              <AlertTriangle className="mt-0.5 size-4.5 shrink-0 text-amber-500" />
-            ) : (
-              <XCircle className="mt-0.5 size-4.5 shrink-0 text-rose-500" />
-            )}
-            <div className="min-w-0 break-words">
-              <p className="text-[13.5px] font-medium text-slate-900">{c.title}</p>
-              <p className="mt-0.5 text-[13px] text-slate-500">{c.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Card>
+      {checks.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {checks.map((c, i) => (
+            <li
+              key={i}
+              className={
+                c.status === "warn"
+                  ? "flex gap-3 rounded-brio-control bg-brio-warning-bg px-4 py-3"
+                  : "flex gap-3 rounded-brio-control bg-brio-danger-bg px-4 py-3"
+              }
+            >
+              {c.status === "warn" ? (
+                <AlertTriangle className="mt-1 size-4 shrink-0 text-brio-warning-ink" aria-hidden />
+              ) : (
+                <XCircle className="mt-1 size-4 shrink-0 text-brio-danger-ink" aria-hidden />
+              )}
+              <div className="min-w-0 break-words">
+                <p className="font-medium text-brio-ink">{c.title}</p>
+                <p className="mt-1 text-sm text-brio-muted">{c.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
-export function SummaryCard({ rows }: { rows: [string, ReactNode][] }) {
+export function AssignmentSummary({ rows }: { rows: [string, ReactNode][] }) {
   return (
-    <Card className="divide-y divide-slate-100 text-[13px]">
-      {rows.map(([label, value]) => (
-        <div
-          key={label}
-          className="grid grid-cols-1 sm:grid-cols-[120px_minmax(0,1fr)] gap-3 px-5 py-3"
-        >
-          <span className="text-slate-500">{label}</span>
-          <span className="min-w-0 break-words text-slate-800">{value}</span>
-        </div>
-      ))}
-    </Card>
+    <section aria-labelledby="assignment-summary" className="min-w-0">
+      <div className="mb-4">
+        <h2 id="assignment-summary" className="text-base font-semibold">
+          Assignment summary
+        </h2>
+      </div>
+      <dl className="flex min-w-0 flex-col divide-y divide-brio-subtle rounded-brio-panel bg-canvas px-4">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="grid min-w-0 gap-2 py-3 @min-[32rem]:grid-cols-[9rem_minmax(0,1fr)] @min-[32rem]:gap-5"
+          >
+            <dt className="text-sm text-brio-muted">{label}</dt>
+            <dd className="min-w-0 text-brio-ink [overflow-wrap:anywhere]">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

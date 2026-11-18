@@ -3,12 +3,10 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   CircleHelp,
   Info,
   LogOut,
   Menu,
-  ShieldCheck,
   X,
   XCircle,
 } from "lucide-react";
@@ -70,7 +68,7 @@ export function Shell({ children }: { children: ReactNode }) {
   function downloadReport() {
     if (!report.trim()) return;
     const lines = [
-      "Workspace Ops issue report",
+      "Brio ACP issue report",
       "Date: " + new Date().toISOString(),
       "Reported by: " + (agent?.email ?? ""),
       "Page: " + header.title,
@@ -83,7 +81,7 @@ export function Shell({ children }: { children: ReactNode }) {
     );
     Object.assign(document.createElement("a"), {
       href: url,
-      download: "workspace-ops-issue.txt",
+      download: "brio-acp-issue.txt",
     }).click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
     setReport("");
@@ -118,8 +116,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </aside>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="z-30 shrink-0 border-b border-brio-subtle bg-brio-surface">
-          <div className="flex min-h-16 items-stretch gap-3 px-5 py-3">
+        <header className="z-30 flex min-h-16 shrink-0 border-b border-brio-subtle bg-brio-surface">
+          <div className="flex min-w-0 flex-1 items-stretch gap-3 px-5 py-2">
             <div className="shrink-0 self-center lg:hidden">
               <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
@@ -132,7 +130,17 @@ export function Shell({ children }: { children: ReactNode }) {
                 </SheetTrigger>
                 <SheetContent aria-describedby={undefined}>
                   <div className="flex min-h-16 shrink-0 items-center justify-between gap-2 border-b border-brio-subtle px-4">
-                    <SheetTitle className="font-semibold">Workspace Ops</SheetTitle>
+                    <SheetTitle>
+                      <button
+                        type="button"
+                        aria-label="Brio ACP home"
+                        onClick={openCustomers}
+                        className="flex items-center gap-2 rounded-brio-control font-semibold hover:text-brio-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus"
+                      >
+                        <img src="/brio-mark.png" alt="" className="size-8 shrink-0" />
+                        Brio ACP
+                      </button>
+                    </SheetTitle>
                     <SheetClose asChild>
                       <IconButton label="Close navigation">
                         <X className="size-4" />
@@ -144,50 +152,26 @@ export function Shell({ children }: { children: ReactNode }) {
               </Sheet>
             </div>
             <div className="flex min-h-10 min-w-0 flex-1 flex-col justify-center">
-              {route.name === "customer" && customer ? (
-                <>
-                  <nav
-                    aria-label="Breadcrumb"
-                    className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-                  >
-                    <button
-                      type="button"
-                      onClick={openCustomers}
-                      className="rounded-brio-control text-xs text-brio-muted hover:text-brio-ink hover:underline focus-visible:outline-2 focus-visible:outline-brio-focus"
-                    >
-                      Customers
-                    </button>
-                    <ChevronRight className="size-3.5 shrink-0 text-brio-muted" aria-hidden />
-                    <h1
-                      className="min-w-0 truncate text-base font-semibold leading-6"
-                      title={customer.name}
-                      aria-current="page"
-                    >
-                      {customer.name}
-                    </h1>
-                    <CustomerStatusBadge status={customer.status} />
-                  </nav>
-                  <p className="truncate text-xs text-brio-muted">{customer.domain}</p>
-                </>
-              ) : (
-                <>
-                  <h1
-                    className="truncate text-base font-semibold leading-6 text-brio-ink"
-                    title={header.title}
-                  >
-                    {header.title}
-                  </h1>
-                  {header.description && (
-                    <p
-                      className={cx(
-                        "truncate text-xs text-brio-muted",
-                        route.name === "customers" && "hidden sm:block",
-                      )}
-                    >
-                      {header.description}
-                    </p>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <h1
+                  className="min-w-0 truncate text-base font-semibold leading-6 text-brio-ink"
+                  title={header.title}
+                >
+                  {header.title}
+                </h1>
+                {route.name === "customer" && customer && (
+                  <CustomerStatusBadge status={customer.status} />
+                )}
+              </div>
+              {header.description && (
+                <p
+                  className={cx(
+                    "truncate text-xs text-brio-muted",
+                    route.name === "customers" && "hidden sm:block",
                   )}
-                </>
+                >
+                  {header.description}
+                </p>
               )}
             </div>
             <WorkspaceProfile />
@@ -201,7 +185,10 @@ export function Shell({ children }: { children: ReactNode }) {
             className={cx(
               "@container flex min-h-full min-w-0 flex-col",
               !isForm && "p-5",
-              route.name === "customers" && "h-full",
+              (route.name === "customers" ||
+                route.name === "customer" ||
+                route.name === "assign") &&
+                "h-full",
             )}
           >
             {children}
@@ -248,17 +235,18 @@ function SidebarNavigation({
     "flex h-10 w-full items-center gap-3 rounded-brio-control px-3 text-left text-sm font-medium text-brio-ink hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-brio-focus";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="hidden h-16 shrink-0 items-center gap-3 border-b border-brio-subtle px-4 lg:flex">
-        <span
-          title="Workspace Ops"
-          className="grid size-8 shrink-0 place-items-center rounded-full bg-brio-ink text-white"
-        >
-          <ShieldCheck className="size-4" aria-hidden />
-        </span>
+      <button
+        type="button"
+        aria-label="Brio ACP home"
+        title="Brio ACP home"
+        onClick={onCustomers}
+        className="hidden h-16 w-full shrink-0 items-center gap-3 border-b border-brio-subtle px-4 text-left hover:bg-brio-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brio-focus lg:flex"
+      >
+        <img src="/brio-mark.png" alt="" className="size-8 shrink-0" />
         <span className={cx("whitespace-nowrap font-semibold", collapsed && "sr-only")}>
-          Workspace Ops
+          Brio ACP
         </span>
-      </div>
+      </button>
       <nav aria-label="Main navigation" className="p-3">
         <button
           type="button"
@@ -286,7 +274,7 @@ function WorkspaceProfile() {
   if (!agent) return null;
   return (
     <details
-      className="group relative min-w-0 max-w-[48%] shrink-0"
+      className="group relative min-w-0 max-w-[48%] shrink-0 self-center"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
       }}
@@ -300,11 +288,11 @@ function WorkspaceProfile() {
     >
       <summary
         aria-label={"Profile for " + agent.name}
-        className="flex h-full cursor-pointer list-none items-center gap-2 rounded-brio-control px-[9px] hover:bg-brio-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus sm:px-[13px] [&::-webkit-details-marker]:hidden"
+        className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-brio-panel bg-brio-surface px-2 text-brio-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus sm:px-3 [&::-webkit-details-marker]:hidden"
       >
-        <Avatar name={agent.name} size="sm" />
+        <Avatar name={agent.name} size="sm" tone="neutral" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold" title={agent.name}>
+          <p className="truncate text-sm leading-6 font-medium" title={agent.name}>
             {agent.name}
           </p>
           <p className="hidden truncate text-xs text-brio-muted sm:block" title={agent.email}>
@@ -312,7 +300,7 @@ function WorkspaceProfile() {
           </p>
         </div>
         <ChevronDown
-          className="size-4 shrink-0 text-brio-muted group-open:rotate-180"
+          className="size-4 shrink-0 text-brio-ink group-open:rotate-180 sm:ml-2"
           aria-hidden
         />
       </summary>

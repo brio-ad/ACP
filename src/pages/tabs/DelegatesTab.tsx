@@ -1,31 +1,29 @@
-import { RecordsTable } from "../../components/RecordsTable";
+import { RecordsHeading, RecordsTable, RecordsViewport } from "../../components/RecordsTable";
 import { useState } from "react";
 import { Trash2, UserCog, UserPlus } from "lucide-react";
-import { formatDate, fullName, uid, type Delegation, type DirectoryUser } from "../../data";
-import { useStore, type BatchCommit, type CustomerScope } from "../../store";
-import { TablePagination } from "../../components/TablePagination";
 import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Modal,
-  SearchInput,
-  Select,
-} from "../../components/ui";
+  formatDate,
+  fullName,
+  selectedUsers,
+  uid,
+  type Delegation,
+  type DirectoryUser,
+  type RecipientSelection,
+} from "../../data";
+import { useStore, type BatchCommit, type CustomerScope } from "../../store";
+import { RecipientPicker } from "../../components/RecipientPicker";
+import { TablePagination, useTablePage } from "../../components/TablePagination";
+import { Avatar, Badge, Button, Card, EmptyState, Field, Modal, Select } from "../../components/ui";
 
-const PAGE_SIZE = 15;
+const emptySelection: RecipientSelection = { all: false, ids: [] };
 
 export function DelegatesTab({ scope }: { scope: CustomerScope }) {
   const { customer, users, delegations } = scope;
   const { agent, commitBatch, toast } = useStore();
   const [ownerId, setOwnerId] = useState("");
-  const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selection, setSelection] = useState(emptySelection);
+  const [importing, setImporting] = useState(false);
   const [removing, setRemoving] = useState<Delegation | null>(null);
   const byId = new Map(users.map((user) => [user.id, user]));
   const owner = byId.get(ownerId);
@@ -35,17 +33,13 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
         .filter((d) => d.ownerId === owner.id || d.ownerId.toLowerCase() === mailbox.toLowerCase())
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     : [];
-  const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / PAGE_SIZE)));
-  const visibleRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const { visibleRows, pagination, resetPage, viewportRef } = useTablePage(rows);
   const assigned = new Set(rows.map((d) => d.delegateId));
   const mailboxOwners = [...users].sort((a, b) => fullName(a).localeCompare(fullName(b)));
   const available = users.filter(
     (user) => user.status === "active" && user.id !== ownerId && !assigned.has(user.id),
   );
-  const matching = available.filter((user) =>
-    `${fullName(user)} ${user.email}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  const picked = available.filter((user) => selected.includes(user.id));
+  const picked = selectedUsers(selection, available);
   const mailboxFor = (d: Delegation) => byId.get(d.ownerId)?.email ?? d.ownerId;
 
   function record(
@@ -86,7 +80,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
   }
 
   function add() {
-    if (!owner || owner.status !== "active" || !picked.length) return;
+    if (!owner || owner.status !== "active" || importing || !picked.length) return;
     const createdAt = new Date().toISOString();
     const entries = picked.map((user) => ({
       id: uid("dlg"),
@@ -101,13 +95,14 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
   }
 
   return (
-    <div className="grid gap-5">
-      <Card className="@container overflow-hidden">
-        <div className="records-toolbar">
-          <p className="mb-3 text-sm text-brio-muted">
-            Select a mailbox owner to see who has access. Changes update demo records only.
-          </p>
-          <div className="flex flex-wrap items-end gap-3">
+    <div className="flex min-h-min flex-1 flex-col">
+      <Card className="@container flex min-h-min flex-1 flex-col overflow-hidden">
+        <div className="records-toolbar shrink-0">
+          <RecordsHeading
+            title="Mailbox delegates"
+            description="Select a mailbox owner to see who has access. Changes update demo records only."
+          />
+          <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="min-w-0 flex-1 basis-56 sm:max-w-lg">
               <Field label="Mailbox owner">
                 <Select
@@ -115,7 +110,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
                   disabled={!mailboxOwners.length}
                   onChange={(event) => {
                     setOwnerId(event.target.value);
-                    setPage(1);
+                    resetPage();
                   }}
                 >
                   <option value="">
@@ -137,8 +132,8 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
               icon={<UserPlus className="size-4" />}
               disabled={owner?.status !== "active"}
               onClick={() => {
-                setQuery("");
-                setSelected([]);
+                setSelection(emptySelection);
+                setImporting(false);
                 setAdding(true);
               }}
             >
@@ -152,7 +147,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
           )}
         </div>
         {rows.length ? (
-          <div className="overflow-x-auto">
+          <RecordsViewport ref={viewportRef} fill>
             <RecordsTable aria-label="Assigned delegates">
               <thead>
                 <tr>
@@ -207,7 +202,7 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
                 })}
               </tbody>
             </RecordsTable>
-          </div>
+          </RecordsViewport>
         ) : (
           <EmptyState
             icon={<UserCog className="size-5" />}
@@ -219,29 +214,21 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
             }
           />
         )}
-        {owner && (
-          <TablePagination
-            label="Delegate pagination"
-            noun="delegate"
-            total={rows.length}
-            page={currentPage}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-          />
-        )}
+        {owner && <TablePagination label="Delegate pagination" noun="delegate" {...pagination} />}
       </Card>
 
       <Modal
         open={adding}
         onClose={() => setAdding(false)}
         title="Add delegates"
+        width="max-w-5xl"
         footer={
           <>
             <span className="mr-auto self-center text-sm text-slate-500" aria-live="polite">
               {picked.length} selected
             </span>
             <Button onClick={() => setAdding(false)}>Cancel</Button>
-            <Button variant="primary" disabled={!picked.length} onClick={add}>
+            <Button variant="primary" disabled={importing || !picked.length} onClick={add}>
               {picked.length === 1 ? "Add delegate" : "Add delegates"}
             </Button>
           </>
@@ -251,42 +238,17 @@ export function DelegatesTab({ scope }: { scope: CustomerScope }) {
           Select users to add to the demo delegate list for{" "}
           <strong className="font-medium text-slate-900">{mailbox}</strong>.
         </p>
-        <SearchInput
-          label="Search directory"
-          placeholder="Search by name or email"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <div className="mt-3 max-h-72 divide-y divide-brio-subtle overflow-auto rounded-brio-panel border border-brio-border">
-          {matching.length ? (
-            matching.map((user) => (
-              <label
-                key={user.id}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-brio-hover has-checked:bg-brio-primary/10"
-              >
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${user.email}`}
-                  className="size-5 shrink-0 accent-brio-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brio-focus"
-                  checked={selected.includes(user.id)}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setSelected((ids) =>
-                      checked ? [...ids, user.id] : ids.filter((id) => id !== user.id),
-                    );
-                  }}
-                />
-                <Person user={user} fallback={user.email} />
-              </label>
-            ))
-          ) : (
-            <p className="p-4 text-sm text-slate-500">
-              {available.length
-                ? "No users match your search."
-                : "No eligible directory users are available."}
-            </p>
-          )}
-        </div>
+        {adding && (
+          <div className="overflow-hidden rounded-brio-panel border border-brio-subtle">
+            <RecipientPicker
+              users={available}
+              directoryUsers={users}
+              selection={selection}
+              onChange={setSelection}
+              onImportingChange={setImporting}
+            />
+          </div>
+        )}
       </Modal>
 
       <Modal

@@ -15,6 +15,7 @@
   --color-brio-primary-hover: #fff353;
   --color-brio-primary-active: #d8c100;
   --color-brio-surface: #ffffff;
+  --color-brio-brand-canvas: #faf9eb;
   --color-brio-hover: #f5f5f5;
   --color-brio-subtle: #e6e6e6;
   --color-brio-border: #d6d6d6;
@@ -78,6 +79,9 @@
   }
   .records-table > thead {
     @apply border-b border-brio-subtle bg-canvas text-xs text-brio-muted;
+  }
+  .records-viewport > .records-table > thead {
+    @apply sticky top-0 z-10;
   }
   .records-table > thead > tr > th {
     @apply h-11 py-3 font-medium;
@@ -157,10 +161,6 @@
       grid-column: 1 / -1;
     }
   }
-}
-
-@utility flow-columns {
-  @apply grid grid-cols-1 items-start gap-5 @min-[56rem]:grid-cols-2;
 }
 
 /* Content inside the signature editor and previews mimics Gmail's defaults. */

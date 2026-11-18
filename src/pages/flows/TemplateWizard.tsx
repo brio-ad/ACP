@@ -2,10 +2,11 @@ import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { newTemplate, type Template } from "../../data";
 import { useCustomer, useStore } from "../../store";
-import { ActionFooter } from "../../components/FormLayout";
+import { ActionFooter, FooterStep } from "../../components/FormLayout";
 import { SignatureEditor } from "../../components/SignatureEditor";
 import { SignaturePreview } from "../../components/SignaturePreview";
 import { Button, Card, Field, Input, Textarea } from "../../components/ui";
+import { NotifyPicker } from "./NotifyPicker";
 const DESCRIPTION_LIMIT = 250;
 
 export function TemplateWizard({
@@ -57,14 +58,14 @@ export function TemplateWizard({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
-      <div className="grid min-w-0 flex-1 content-start gap-5 p-5">
-        <Card className="divide-y divide-brio-subtle">
-          <section aria-labelledby="template-information" className="p-5">
-            <h2 id="template-information" className="mb-4 text-base font-semibold">
-              Template information
+    <div className="flex min-w-0 flex-1 flex-col bg-canvas">
+      <div className="min-w-0 flex-1 p-5">
+        <Card className="@container flex w-full min-w-0 flex-col gap-5 p-5">
+          <section aria-labelledby="template-details">
+            <h2 id="template-details" className="mb-4 text-base font-semibold text-brio-ink">
+              Template Details
             </h2>
-            <div className="grid items-start gap-4 @min-[40rem]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="grid min-w-0 items-start gap-4 @min-[36rem]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
               <Field
                 label="Template name"
                 required
@@ -96,37 +97,51 @@ export function TemplateWizard({
               </Field>
             </div>
           </section>
-          <section aria-labelledby="signature-design">
-            <div className="border-b border-brio-subtle px-5 py-4">
-              <h2 id="signature-design" className="text-base font-semibold">
-                Signature design
-              </h2>
-              <p className="mt-1 text-sm text-brio-muted">
-                Edit the signature and check how it appears for a directory user.
-              </p>
-            </div>
-            <div className="grid min-w-0 auto-rows-[31.5rem] gap-px bg-brio-subtle @min-[56rem]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-              <SignatureEditor html={draft.html} onChange={(html) => update({ html })} />
+          <SignatureEditor
+            html={draft.html}
+            onChange={(html) => update({ html })}
+            preview={
               <SignaturePreview
-                embedded
+                signatureOnly
+                title="Preview"
                 html={draft.html}
                 customer={customer}
                 users={users}
                 userId={previewId}
                 onUserChange={setPreviewId}
               />
-            </div>
+            }
+          />
+          <section aria-labelledby="template-notifications">
+            <h2 id="template-notifications" className="text-base font-semibold text-brio-ink">
+              Notifications
+            </h2>
+            <p className="mt-1 mb-4 text-sm text-brio-muted">
+              Default recipients for deployments using this template. Email delivery is unavailable
+              in this demo.
+            </p>
+            <NotifyPicker
+              customer={customer}
+              users={users}
+              value={draft.notify}
+              onChange={(notify) => update({ notify })}
+              timing={draft.notifyWhen}
+              onTimingChange={(notifyWhen) => update({ notifyWhen })}
+            />
           </section>
         </Card>
       </div>
       <ActionFooter
         left={<Button onClick={exit}>Cancel</Button>}
         center={
-          attempted && error ? (
-            <span role="alert" className="text-brio-danger-ink">
-              {error}
-            </span>
-          ) : undefined
+          <>
+            <FooterStep number={1} />
+            {attempted && error && (
+              <p role="alert" className="mt-1 text-center text-brio-danger-ink">
+                {error}
+              </p>
+            )}
+          </>
         }
         right={
           <>
@@ -134,7 +149,7 @@ export function TemplateWizard({
               {existing ? "Save changes" : "Save as Template"}
             </Button>
             <Button variant="primary" onClick={() => save(true)}>
-              Save &amp; Assign <ArrowRight className="size-4" />
+              Next <ArrowRight className="size-4" aria-hidden />
             </Button>
           </>
         }

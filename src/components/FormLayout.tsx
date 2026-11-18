@@ -1,5 +1,13 @@
 import type { ReactNode } from "react";
 
+export function FooterStep({ number }: { number: number }) {
+  return (
+    <p aria-current="step" className="text-center">
+      Step {number}
+    </p>
+  );
+}
+
 export function ActionFooter({
   left,
   center,

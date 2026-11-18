@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   AlignCenter,
   AlignLeft,
   AlignRight,
   Baseline,
   Bold,
-  Braces,
   ChevronDown,
   Code2,
   Image as ImageIcon,
@@ -15,7 +14,6 @@ import {
   Link2,
   List,
   ListOrdered,
-  Plus,
   Redo2,
   RemoveFormatting,
   Strikethrough,
@@ -24,7 +22,7 @@ import {
   Undo2,
   Eye,
 } from "lucide-react";
-import { BLOCKS, VARIABLES } from "../data";
+import { VARIABLES } from "../data";
 import { Button, Input, Segmented, cx } from "./ui";
 
 const FONTS = [
@@ -86,11 +84,14 @@ type Mode = "visual" | "html";
 export function SignatureEditor({
   html,
   onChange,
+  preview,
 }: {
   html: string;
   onChange: (html: string) => void;
+  preview: ReactNode;
 }) {
   const [mode, setMode] = useState<Mode>("visual");
+  const variablesHeading = useId();
   const surface = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const range = useRef<Range | null>(null);
@@ -177,299 +178,309 @@ export function SignatureEditor({
   const keep = (e: React.MouseEvent) => e.preventDefault();
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-brio-surface">
-      <div className="relative flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-brio-subtle px-4 py-3">
-        <Segmented
-          size="sm"
-          value={mode}
-          onChange={setMode}
-          options={[
-            {
-              value: "visual",
-              label: (
-                <>
-                  <Eye className="size-3.5" /> Visual
-                </>
-              ),
-            },
-            {
-              value: "html",
-              label: (
-                <>
-                  <Code2 className="size-3.5" /> HTML
-                </>
-              ),
-            },
-          ]}
-        />
-        <div className="flex items-center gap-1">
-          <BlockMenu onPick={(h) => insert(h)} />
-        </div>
-      </div>
-
-      {mode === "visual" && (
-        <div
-          className="relative flex flex-wrap items-center gap-0.5 border-b border-slate-100 bg-slate-50/60 px-2 py-1.5"
-          onMouseDown={keep}
-        >
-          <Tool label="Undo" onClick={() => exec("undo")}>
-            <Undo2 />
-          </Tool>
-          <Tool label="Redo" onClick={() => exec("redo")}>
-            <Redo2 />
-          </Tool>
-          <Sep />
-          <Dropdown
-            label="Font"
-            trigger={
-              <span className="flex w-24 items-center justify-between text-[13px] text-slate-700">
-                Sans Serif <ChevronDown className="size-3.5" />
-              </span>
-            }
-          >
-            {(close) =>
-              FONTS.map((f) => (
-                <MenuItem
-                  key={f.label}
-                  onClick={() => {
-                    exec("fontName", f.value);
-                    close();
-                  }}
-                >
-                  <span style={{ fontFamily: f.value }}>{f.label}</span>
-                </MenuItem>
-              ))
-            }
-          </Dropdown>
-          <Sep />
-          <Dropdown
-            label="Size"
-            trigger={
-              <span className="flex items-center gap-0.5">
-                <Type className="size-4" />
-                <ChevronDown className="size-3" />
-              </span>
-            }
-          >
-            {(close) =>
-              SIZES.map((s) => (
-                <MenuItem
-                  key={s.value}
-                  onClick={() => {
-                    exec("fontSize", s.value);
-                    close();
-                  }}
-                >
-                  <span style={{ fontSize: s.px }}>{s.label}</span>
-                </MenuItem>
-              ))
-            }
-          </Dropdown>
-          <Sep />
-          <Tool label="Bold" active={active.bold} onClick={() => exec("bold")}>
-            <Bold />
-          </Tool>
-          <Tool label="Italic" active={active.italic} onClick={() => exec("italic")}>
-            <Italic />
-          </Tool>
-          <Tool label="Underline" active={active.underline} onClick={() => exec("underline")}>
-            <Underline />
-          </Tool>
-          <Tool
-            label="Strikethrough"
-            active={active.strikeThrough}
-            onClick={() => exec("strikeThrough")}
-          >
-            <Strikethrough />
-          </Tool>
-          <Dropdown
-            label="Text color"
-            trigger={
-              <span className="flex items-center gap-0.5">
-                <Baseline className="size-4" />
-                <ChevronDown className="size-3" />
-              </span>
-            }
-          >
-            {(close) => (
-              <div className="grid grid-cols-1 gap-4 p-2 sm:grid-cols-2">
-                {(["Text color", "Background color"] as const).map((title) => (
-                  <div key={title}>
-                    <p className="mb-1.5 text-[11px] font-medium text-slate-500">{title}</p>
-                    <div className="grid grid-cols-8 gap-1">
-                      {COLORS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          aria-label={`${title} ${c}`}
-                          onMouseDown={keep}
-                          onClick={() => {
-                            exec(title === "Text color" ? "foreColor" : "hiliteColor", c, true);
-                            close();
-                          }}
-                          className="size-4.5 rounded-sm ring-1 ring-slate-200 transition-transform hover:scale-125"
-                          style={{ background: c }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Dropdown>
-          <Sep />
-          <PromptTool
-            label="Insert link"
-            icon={<Link2 />}
-            fields={["Text to display", "URL or {{email}}"]}
-            onSubmit={([text, url]) => {
-              const href = /^(https?:|mailto:|tel:|\{\{)/.test(url) ? url : `https://${url}`;
-              exec("insertHTML", `<a href="${href}">${text || url}</a>`);
-            }}
-          />
-          <PromptTool
-            label="Insert image"
-            icon={<ImageIcon />}
-            fields={["Image URL", "Width (px)"]}
-            onSubmit={([src, w]) => {
-              exec("insertHTML", `<img src="${src}" ${w ? `width="${w}"` : ""} style="border:0">`);
-            }}
-          />
-          <Sep />
-          <Dropdown
-            label="Align"
-            trigger={
-              <span className="flex items-center gap-0.5">
-                {active.justifyCenter ? (
-                  <AlignCenter className="size-4" />
-                ) : active.justifyRight ? (
-                  <AlignRight className="size-4" />
-                ) : (
-                  <AlignLeft className="size-4" />
-                )}
-                <ChevronDown className="size-3" />
-              </span>
-            }
-          >
-            {(close) => (
-              <div className="flex gap-0.5 p-1">
-                <Tool
-                  label="Align left"
-                  onClick={() => {
-                    exec("justifyLeft");
-                    close();
-                  }}
-                >
-                  <AlignLeft />
-                </Tool>
-                <Tool
-                  label="Align center"
-                  onClick={() => {
-                    exec("justifyCenter");
-                    close();
-                  }}
-                >
-                  <AlignCenter />
-                </Tool>
-                <Tool
-                  label="Align right"
-                  onClick={() => {
-                    exec("justifyRight");
-                    close();
-                  }}
-                >
-                  <AlignRight />
-                </Tool>
-              </div>
-            )}
-          </Dropdown>
-          <Tool
-            label="Numbered list"
-            active={active.insertOrderedList}
-            onClick={() => exec("insertOrderedList")}
-          >
-            <ListOrdered />
-          </Tool>
-          <Tool
-            label="Bulleted list"
-            active={active.insertUnorderedList}
-            onClick={() => exec("insertUnorderedList")}
-          >
-            <List />
-          </Tool>
-          <Tool label="Indent less" onClick={() => exec("outdent")}>
-            <IndentDecrease />
-          </Tool>
-          <Tool label="Indent more" onClick={() => exec("indent")}>
-            <IndentIncrease />
-          </Tool>
-          <Sep />
-          <Tool label="Remove formatting" onClick={() => exec("removeFormat")}>
-            <RemoveFormatting />
-          </Tool>
-        </div>
-      )}
-
-      <div className="border-b border-slate-100 px-3 py-2.5">
-        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-slate-400 uppercase">
-          <Braces className="size-3.5" /> Insert directory field
+    <section
+      aria-label="Signature design"
+      className="min-w-0 rounded-brio-panel border border-brio-border bg-brio-surface p-3 sm:p-4"
+    >
+      <section aria-labelledby={variablesHeading}>
+        <h2 id={variablesHeading} className="text-base font-semibold text-brio-ink">
+          Available Variables
+        </h2>
+        <p className="mt-2 text-sm text-brio-muted">
+          Select a variable to insert it, or type it directly.
         </p>
-        <div className="flex flex-wrap gap-1.5" onMouseDown={keep}>
-          {VARIABLES.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() =>
-                insert(
-                  v.key === "companyLogo"
-                    ? `<img src="{{companyLogo}}" alt="{{companyName}}" width="120" style="border:0">`
-                    : `{{${v.key}}}`,
-                )
-              }
-              className={cx(
-                "rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset transition-colors",
-                v.group === "Company"
-                  ? "bg-violet-50/60 text-violet-700 ring-violet-200/70 hover:bg-violet-100"
-                  : v.group === "Contact"
-                    ? "bg-emerald-50/60 text-emerald-700 ring-emerald-200/70 hover:bg-emerald-100"
-                    : "bg-accent-50/70 text-accent-700 ring-accent-200/70 hover:bg-accent-100",
-              )}
-            >
-              {v.label}
-            </button>
-          ))}
+        <div className="mt-3 flex flex-wrap gap-1.5" onMouseDown={keep}>
+          {VARIABLES.filter(({ key }) => key !== "fullName").map(({ key, label }) => {
+            const token = `{{${key}}}`;
+            return (
+              <Button
+                key={key}
+                size="sm"
+                className="px-2! font-mono font-normal!"
+                title={label}
+                aria-label={`${token} · Insert ${label.toLowerCase()}`}
+                onClick={() =>
+                  insert(
+                    key === "companyLogo"
+                      ? `<img src="${token}" alt="{{companyName}}" width="120" style="border:0">`
+                      : token,
+                  )
+                }
+              >
+                {token}
+              </Button>
+            );
+          })}
         </div>
+      </section>
+
+      <div className="relative mt-3 flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 border-b border-brio-subtle bg-canvas px-2 py-1">
+        <div className="order-last ml-auto flex flex-wrap items-center gap-2">
+          <Segmented
+            size="sm"
+            value={mode}
+            onChange={setMode}
+            options={[
+              {
+                value: "visual",
+                label: (
+                  <>
+                    <Eye className="size-3.5" /> Visual
+                  </>
+                ),
+              },
+              {
+                value: "html",
+                label: (
+                  <>
+                    <Code2 className="size-3.5" /> HTML
+                  </>
+                ),
+              },
+            ]}
+          />
+        </div>
+
+        {mode === "visual" && (
+          <div className="relative flex min-w-0 flex-wrap items-center gap-0.5" onMouseDown={keep}>
+            <Tool label="Undo" onClick={() => exec("undo")}>
+              <Undo2 />
+            </Tool>
+            <Tool label="Redo" onClick={() => exec("redo")}>
+              <Redo2 />
+            </Tool>
+            <Sep />
+            <Dropdown
+              label="Font"
+              trigger={
+                <span className="flex w-24 items-center justify-between text-[13px] text-slate-700">
+                  Sans Serif <ChevronDown className="size-3.5" />
+                </span>
+              }
+            >
+              {(close) =>
+                FONTS.map((f) => (
+                  <MenuItem
+                    key={f.label}
+                    onClick={() => {
+                      exec("fontName", f.value);
+                      close();
+                    }}
+                  >
+                    <span style={{ fontFamily: f.value }}>{f.label}</span>
+                  </MenuItem>
+                ))
+              }
+            </Dropdown>
+            <Sep />
+            <Dropdown
+              label="Size"
+              trigger={
+                <span className="flex items-center gap-0.5">
+                  <Type className="size-4" />
+                  <ChevronDown className="size-3" />
+                </span>
+              }
+            >
+              {(close) =>
+                SIZES.map((s) => (
+                  <MenuItem
+                    key={s.value}
+                    onClick={() => {
+                      exec("fontSize", s.value);
+                      close();
+                    }}
+                  >
+                    <span style={{ fontSize: s.px }}>{s.label}</span>
+                  </MenuItem>
+                ))
+              }
+            </Dropdown>
+            <Sep />
+            <Tool label="Bold" active={active.bold} onClick={() => exec("bold")}>
+              <Bold />
+            </Tool>
+            <Tool label="Italic" active={active.italic} onClick={() => exec("italic")}>
+              <Italic />
+            </Tool>
+            <Tool label="Underline" active={active.underline} onClick={() => exec("underline")}>
+              <Underline />
+            </Tool>
+            <Tool
+              label="Strikethrough"
+              active={active.strikeThrough}
+              onClick={() => exec("strikeThrough")}
+            >
+              <Strikethrough />
+            </Tool>
+            <Dropdown
+              label="Text color"
+              trigger={
+                <span className="flex items-center gap-0.5">
+                  <Baseline className="size-4" />
+                  <ChevronDown className="size-3" />
+                </span>
+              }
+            >
+              {(close) => (
+                <div className="grid grid-cols-1 gap-4 p-2 sm:grid-cols-2">
+                  {(["Text color", "Background color"] as const).map((title) => (
+                    <div key={title}>
+                      <p className="mb-1.5 text-[11px] font-medium text-slate-500">{title}</p>
+                      <div className="grid grid-cols-8 gap-1">
+                        {COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            aria-label={`${title} ${c}`}
+                            onMouseDown={keep}
+                            onClick={() => {
+                              exec(title === "Text color" ? "foreColor" : "hiliteColor", c, true);
+                              close();
+                            }}
+                            className="size-4.5 rounded-sm ring-1 ring-slate-200 transition-transform hover:scale-125"
+                            style={{ background: c }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Dropdown>
+            <Sep />
+            <PromptTool
+              label="Insert link"
+              icon={<Link2 />}
+              fields={["Text to display", "URL or {{email}}"]}
+              onSubmit={([text, url]) => {
+                const href = /^(https?:|mailto:|tel:|\{\{)/.test(url) ? url : `https://${url}`;
+                exec("insertHTML", `<a href="${href}">${text || url}</a>`);
+              }}
+            />
+            <PromptTool
+              label="Insert image"
+              icon={<ImageIcon />}
+              fields={["Image URL", "Width (px)"]}
+              onSubmit={([src, w]) => {
+                exec(
+                  "insertHTML",
+                  `<img src="${src}" ${w ? `width="${w}"` : ""} style="border:0">`,
+                );
+              }}
+            />
+            <Sep />
+            <Dropdown
+              label="Align"
+              trigger={
+                <span className="flex items-center gap-0.5">
+                  {active.justifyCenter ? (
+                    <AlignCenter className="size-4" />
+                  ) : active.justifyRight ? (
+                    <AlignRight className="size-4" />
+                  ) : (
+                    <AlignLeft className="size-4" />
+                  )}
+                  <ChevronDown className="size-3" />
+                </span>
+              }
+            >
+              {(close) => (
+                <div className="flex gap-0.5 p-1">
+                  <Tool
+                    label="Align left"
+                    onClick={() => {
+                      exec("justifyLeft");
+                      close();
+                    }}
+                  >
+                    <AlignLeft />
+                  </Tool>
+                  <Tool
+                    label="Align center"
+                    onClick={() => {
+                      exec("justifyCenter");
+                      close();
+                    }}
+                  >
+                    <AlignCenter />
+                  </Tool>
+                  <Tool
+                    label="Align right"
+                    onClick={() => {
+                      exec("justifyRight");
+                      close();
+                    }}
+                  >
+                    <AlignRight />
+                  </Tool>
+                </div>
+              )}
+            </Dropdown>
+            <Tool
+              label="Numbered list"
+              active={active.insertOrderedList}
+              onClick={() => exec("insertOrderedList")}
+            >
+              <ListOrdered />
+            </Tool>
+            <Tool
+              label="Bulleted list"
+              active={active.insertUnorderedList}
+              onClick={() => exec("insertUnorderedList")}
+            >
+              <List />
+            </Tool>
+            <Tool label="Indent less" onClick={() => exec("outdent")}>
+              <IndentDecrease />
+            </Tool>
+            <Tool label="Indent more" onClick={() => exec("indent")}>
+              <IndentIncrease />
+            </Tool>
+            <Sep />
+            <Tool label="Remove formatting" onClick={() => exec("removeFormat")}>
+              <RemoveFormatting />
+            </Tool>
+          </div>
+        )}
       </div>
 
-      {mode === "visual" ? (
-        <div
-          ref={surface}
-          contentEditable
-          suppressContentEditableWarning
-          role="textbox"
-          aria-multiline
-          aria-label="Signature editor"
-          data-placeholder="Start typing your signature or insert a component…"
-          onInput={emit}
-          className="sig-surface min-h-0 flex-1 overflow-auto px-4 py-4 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brio-focus"
-        />
-      ) : (
-        <textarea
-          ref={textarea}
-          value={html}
-          onChange={(e) => onChange(e.target.value)}
-          spellCheck={false}
-          aria-label="Signature HTML"
-          className="min-h-0 flex-1 resize-none overflow-auto bg-brio-ink px-4 py-3 font-mono text-xs leading-relaxed text-brio-surface focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brio-primary"
-        />
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-brio-subtle px-4 py-2 text-[11px] text-slate-400">
-        <span>Fields like {"{{firstName}}"} are replaced per user at deploy time</span>
-        <span className={cx("tabular-nums", html.length > 10000 && "font-medium text-rose-600")}>
-          {html.length.toLocaleString()} / 10,000 chars
-        </span>
+      <div className="mt-3 grid min-w-0 items-start gap-4 @min-[48rem]:grid-cols-2">
+        <div className="min-w-0">
+          <h3 className="mb-2 flex h-8 items-center text-sm font-medium">Editor</h3>
+          {mode === "visual" ? (
+            <div
+              ref={surface}
+              contentEditable
+              suppressContentEditableWarning
+              role="textbox"
+              aria-multiline
+              aria-label="Signature editor"
+              data-placeholder="Start typing your signature or insert a component…"
+              onInput={emit}
+              className="sig-surface h-56 overflow-auto rounded-brio-panel border border-brio-border bg-brio-hover p-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brio-focus"
+            />
+          ) : (
+            <textarea
+              ref={textarea}
+              value={html}
+              onChange={(e) => onChange(e.target.value)}
+              spellCheck={false}
+              aria-label="Signature HTML"
+              className="block h-56 w-full resize-none overflow-auto rounded-brio-panel border border-brio-border bg-brio-hover p-3 font-mono text-xs leading-relaxed text-brio-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brio-focus"
+            />
+          )}
+          <div className="mt-2 flex justify-end text-xs text-brio-muted">
+            <span
+              className={cx("tabular-nums", html.length > 10000 && "font-medium text-rose-600")}
+            >
+              {html.length.toLocaleString()} / 10,000 chars
+            </span>
+          </div>
+        </div>
+        {preview}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -618,44 +629,6 @@ function PromptTool({
               Insert
             </Button>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BlockMenu({ onPick }: { onPick: (html: string) => void }) {
-  const { open, setOpen, ref } = usePopover();
-  return (
-    <div ref={ref}>
-      <Button
-        size="sm"
-        variant="secondary"
-        icon={<Plus className="size-3.5" />}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setOpen(!open)}
-      >
-        Add component
-      </Button>
-      {open && (
-        <div
-          className="absolute top-full right-4 z-30 mt-1 w-72 max-w-[calc(100%-2rem)] rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200"
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          {BLOCKS.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => {
-                onPick(b.html);
-                setOpen(false);
-              }}
-              className="block w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50"
-            >
-              <span className="block text-[13px] font-medium text-slate-900">{b.label}</span>
-              <span className="block text-xs text-slate-500">{b.description}</span>
-            </button>
-          ))}
         </div>
       )}
     </div>

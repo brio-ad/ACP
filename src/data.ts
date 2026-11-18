@@ -32,7 +32,7 @@ export interface Customer {
   contactEmail: string;
   address: string;
   website: string;
-  plan: Plan;
+  plan: Plan | null;
   status: CustomerStatus;
   color: string;
   createdAt: string;
@@ -395,6 +395,16 @@ export function selectedUsers(sel: RecipientSelection, users: DirectoryUser[]) {
   return users.filter((u) => sel.all !== ids.has(u.id));
 }
 
+const DRAFT_SIGNATURE_HTML = [
+  '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#555;line-height:1.6">',
+  '<div style="margin-bottom:8px;font-size:16px;font-weight:700;color:#1f1f1f">{{firstName}} {{lastName}}</div>',
+  '<div style="margin-bottom:4px">{{title}}</div>',
+  '<div style="margin-bottom:4px">{{email}} | {{mobile}}</div>',
+  '<div style="margin-bottom:8px">{{website}}</div>',
+  '<img src="{{companyLogo}}" alt="{{companyName}}" width="140" style="border:0">',
+  '</div>',
+].join("");
+
 export function newTemplate(customerId: string, id = uid("tpl")): Template {
   return {
     id,
@@ -403,7 +413,7 @@ export function newTemplate(customerId: string, id = uid("tpl")): Template {
     description: "",
     notify: [],
     notifyWhen: "always",
-    html: STARTER_HTML,
+    html: DRAFT_SIGNATURE_HTML,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -676,6 +686,7 @@ export function buildSeed(agentEmail: string): Seed {
       id: `tpl_${c.id}_std`,
       name: "Company standard",
       description: "Default signature for all employees with logo and contact details.",
+      html: STARTER_HTML,
       notify: [c.contactEmail],
       updatedAt: daysAgo(10 + ci),
     };

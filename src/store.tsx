@@ -48,6 +48,9 @@ interface Store {
   navigate: (r: Route, options?: { preserveScroll?: boolean }) => void;
   login: (agent: Agent) => void;
   logout: () => void;
+  addCustomer: (
+    details: Pick<Customer, "name" | "domain" | "serviceAccount" | "contactEmail">,
+  ) => Customer | null;
   saveTemplate: (t: Template) => void;
   deleteTemplate: (id: string) => void;
   commitBatch: (log: LogEntry, changes: BatchCommit) => void;
@@ -98,6 +101,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRoute({ name: "customers" });
   }, []);
   const logout = useCallback(() => setAgent(null), []);
+
+  const addCustomer = useCallback<Store["addCustomer"]>(
+    (details) => {
+      if (data.customers.some((customer) => customer.domain.toLowerCase() === details.domain)) {
+        return null;
+      }
+      const customer: Customer = {
+        ...details,
+        id: uid("customer"),
+        contactName: "",
+        address: "",
+        website: "",
+        plan: null,
+        status: "pending",
+        color: "#756500",
+        createdAt: new Date().toISOString(),
+      };
+      setData((current) => ({ ...current, customers: [customer, ...current.customers] }));
+      return customer;
+    },
+    [data.customers],
+  );
 
   const templateActivity = useCallback(
     (
@@ -186,6 +211,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       navigate,
       login,
       logout,
+      addCustomer,
       saveTemplate,
       deleteTemplate,
       commitBatch,
@@ -200,6 +226,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       navigate,
       login,
       logout,
+      addCustomer,
       saveTemplate,
       deleteTemplate,
       commitBatch,

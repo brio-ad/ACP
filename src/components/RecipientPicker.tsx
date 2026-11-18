@@ -9,10 +9,14 @@ export function RecipientPicker({
   users,
   selection,
   onChange,
+  directoryUsers,
+  onImportingChange,
 }: {
   users: DirectoryUser[];
   selection: RecipientSelection;
   onChange: (s: RecipientSelection) => void;
+  directoryUsers?: DirectoryUser[];
+  onImportingChange?: (busy: boolean) => void;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -21,7 +25,8 @@ export function RecipientPicker({
     result: ReturnType<typeof parseRecipientCsv>;
   } | null>(null);
   const [error, setError] = useState("");
-  const count = selectedUsers(selection, users).length;
+  const pickingDelegates = directoryUsers !== undefined;
+  const count = pickingDelegates ? selectedUsers(selection, users).length : 0;
   const entire = users.length > 0 && count === users.length;
 
   async function importFile(input: File) {
@@ -31,19 +36,27 @@ export function RecipientPicker({
       setError("Choose a CSV file no larger than 2 MB. Your selection is unchanged.");
       return;
     }
+    const inputElement = file.current;
     setBusy(true);
+    onImportingChange?.(true);
     try {
-      const directory = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
-      const result = parseRecipientCsv(await input.text(), directory);
+      const eligibleUsers = new Map(users.map((u) => [u.email.toLowerCase(), u.id]));
+      const directoryEmails = new Set(directoryUsers?.map((user) => user.email.toLowerCase()));
+      const result = parseRecipientCsv(await input.text(), eligibleUsers, directoryEmails);
+      if (file.current !== inputElement) return;
       if (result.ids.length) onChange({ all: false, ids: result.ids });
       setReport({ name: input.name, result });
     } catch (err) {
+      if (file.current !== inputElement) return;
       setError(
         (err instanceof Error ? err.message : "Could not read the CSV.") +
           " Your selection is unchanged.",
       );
     } finally {
-      setBusy(false);
+      if (file.current === inputElement) {
+        setBusy(false);
+        onImportingChange?.(false);
+      }
     }
   }
 
@@ -55,17 +68,28 @@ export function RecipientPicker({
     );
     Object.assign(document.createElement("a"), {
       href: url,
-      download: "signature-recipients.csv",
+      download: pickingDelegates ? "delegates.csv" : "signature-recipients.csv",
     }).click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  const upload = (
+    <Button
+      variant={pickingDelegates ? "secondary" : "primary"}
+      disabled={!users.length || busy}
+      icon={<FileUp className="size-4" />}
+      onClick={() => file.current?.click()}
+    >
+      {busy ? "Reading CSV…" : "Upload CSV"}
+    </Button>
+  );
+
   return (
-    <div className="min-w-0">
+    <div className="flex min-h-min min-w-0 flex-1 flex-col">
       <input
         ref={file}
         type="file"
-        aria-label="Recipient CSV"
+        aria-label={pickingDelegates ? "Delegate CSV" : "Recipient CSV"}
         accept=".csv,text/csv"
         className="hidden"
         onChange={(e) => {
@@ -76,34 +100,50 @@ export function RecipientPicker({
       />
       <UserTable
         embedded
+        tableLabel={pickingDelegates ? "Eligible delegates" : undefined}
+        emptyTitle={pickingDelegates ? "No eligible delegates" : undefined}
+        emptyDescription={
+          pickingDelegates
+            ? "Only active users without access to this mailbox can be added."
+            : undefined
+        }
         heading={
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Signature recipients</h2>
+              <h2 className="text-sm font-semibold">
+                {pickingDelegates ? "Eligible delegates" : "Signature recipients"}
+              </h2>
               <p className="mt-1 text-xs text-brio-muted">
                 Importing a CSV with an email column replaces the current selection.
               </p>
             </div>
-            <p aria-live="polite" aria-atomic="true" className="text-sm text-brio-muted">
-              <strong className="font-semibold tabular-nums text-brio-ink">
-                {count.toLocaleString()}
-              </strong>{" "}
-              of {users.length.toLocaleString()} selected
-            </p>
+            {pickingDelegates && (
+              <p aria-live="polite" aria-atomic="true" className="text-sm text-brio-muted">
+                <strong className="font-semibold tabular-nums text-brio-ink">
+                  {count.toLocaleString()}
+                </strong>{" "}
+                of {users.length.toLocaleString()} selected
+              </p>
+            )}
           </div>
         }
         users={users}
         selection={selection}
         onSelectionChange={onChange}
+        showOrgUnitFilter={pickingDelegates}
+        limitSelectionTableHeight={pickingDelegates}
+        filterAction={pickingDelegates ? undefined : upload}
         toolbarActions={
           <>
-            <Button
-              variant="ghost"
-              disabled={!users.length || busy}
-              onClick={() => onChange(entire ? { all: false, ids: [] } : { all: true, ids: [] })}
-            >
-              {entire ? "Clear selection" : "Select entire directory"}
-            </Button>
+            {pickingDelegates && (
+              <Button
+                variant="ghost"
+                disabled={!users.length || busy}
+                onClick={() => onChange(entire ? { all: false, ids: [] } : { all: true, ids: [] })}
+              >
+                {entire ? "Clear selection" : "Select all eligible users"}
+              </Button>
+            )}
             <IconButton
               label="Download sample CSV"
               disabled={!users.length}
@@ -111,13 +151,7 @@ export function RecipientPicker({
             >
               <Download className="size-4" />
             </IconButton>
-            <Button
-              disabled={!users.length || busy}
-              icon={<FileUp className="size-4" />}
-              onClick={() => file.current?.click()}
-            >
-              {busy ? "Reading CSV…" : "Upload CSV"}
-            </Button>
+            {pickingDelegates && upload}
           </>
         }
         banner={
@@ -140,6 +174,8 @@ export function RecipientPicker({
                     <strong>{report.name}</strong>: {report.result.ids.length} matched ·{" "}
                     {report.result.invalid} invalid · {report.result.duplicates} duplicate ·{" "}
                     {report.result.unmatched.length} unmatched
+                    {report.result.ineligible.length > 0 &&
+                      ` · ${report.result.ineligible.length} ineligible`}
                   </p>
                   {!report.result.ids.length && (
                     <p className="text-brio-muted">Your selection is unchanged.</p>
@@ -148,6 +184,12 @@ export function RecipientPicker({
                     <p className="text-xs text-brio-muted">
                       Unmatched: {report.result.unmatched.slice(0, 3).join(", ")}
                       {report.result.unmatched.length > 3 ? "…" : ""}
+                    </p>
+                  )}
+                  {report.result.ineligible.length > 0 && (
+                    <p className="text-xs text-brio-muted">
+                      Ineligible: {report.result.ineligible.slice(0, 3).join(", ")}
+                      {report.result.ineligible.length > 3 ? "…" : ""}
                     </p>
                   )}
                 </div>

@@ -1,6 +1,7 @@
-import { RecordsTable } from "../components/RecordsTable";
+import { RecordsTable, RecordsViewport } from "../components/RecordsTable";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Building2, ChevronRight } from "lucide-react";
+import { Building2, ChevronRight, Plus } from "lucide-react";
+import { AddCustomerDialog } from "../components/AddCustomerDialog";
 import { PLANS, directorySize, relativeTime, type CustomerStatus, type Plan } from "../data";
 import { useStore } from "../store";
 import { TablePagination } from "../components/TablePagination";
@@ -21,9 +22,9 @@ interface CustomerFilters {
 }
 
 const emptyFilters: CustomerFilters = { query: "", status: "", plan: "" };
-const pageSizes = [5, 10, 25, 50];
 
 export function CustomersPage() {
+  const [adding, setAdding] = useState(false);
   const { data, navigate } = useStore();
   const [draft, setDraft] = useState(emptyFilters);
   const [filters, setFilters] = useState(emptyFilters);
@@ -110,14 +111,14 @@ export function CustomersPage() {
             setOffset(0);
             viewportRef.current?.scrollTo({ top: 0 });
           }}
-          className="grid grid-cols-2 items-center gap-3 records-toolbar shrink-0 @min-[40rem]:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(9rem,auto)_auto]"
+          className="grid grid-cols-2 items-center gap-3 records-toolbar shrink-0 @min-[48rem]:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(9rem,auto)_auto]"
         >
           <SearchInput
             value={draft.query}
             label="Search customers"
             onChange={(e) => setDraft({ ...draft, query: e.target.value })}
             placeholder="Search by name, domain or contact"
-            className="col-span-2 @min-[40rem]:col-span-1"
+            className="col-span-2 @min-[48rem]:col-span-1"
           />
           <Select
             value={draft.status}
@@ -145,7 +146,7 @@ export function CustomersPage() {
               </option>
             ))}
           </Select>
-          <div className="col-span-2 flex justify-end gap-2 @min-[40rem]:col-span-1">
+          <div className="col-span-2 flex flex-wrap justify-end gap-2 @min-[48rem]:col-span-1">
             {canClear && (
               <Button
                 variant="ghost"
@@ -159,8 +160,13 @@ export function CustomersPage() {
                 Clear
               </Button>
             )}
-            <Button type="submit" variant="primary">
-              Search
+            <Button type="submit">Search</Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="size-4" />}
+              onClick={() => setAdding(true)}
+            >
+              Add customer
             </Button>
           </div>
         </form>
@@ -178,9 +184,9 @@ export function CustomersPage() {
             />
           </div>
         ) : (
-          <div ref={viewportRef} className="min-h-0 flex-1 overflow-auto">
+          <RecordsViewport ref={viewportRef} className="min-h-0 flex-1">
             <RecordsTable aria-label="Customers" className="customer-table">
-              <thead className="sticky top-0 z-10">
+              <thead>
                 <tr>
                   <th>Customer</th>
                   <th>Primary contact</th>
@@ -221,11 +227,11 @@ export function CustomersPage() {
                       </div>
                     </td>
                     <td data-label="Primary contact" className=" [overflow-wrap:anywhere]">
-                      <p className="text-brio-ink">{c.contactName}</p>
-                      <p className="text-xs text-brio-muted">{c.contactEmail}</p>
+                      <p className="text-brio-ink">{c.contactName || c.contactEmail}</p>
+                      {c.contactName && <p className="text-xs text-brio-muted">{c.contactEmail}</p>}
                     </td>
                     <td data-label="Plan" className=" text-brio-muted">
-                      {c.plan}
+                      {c.plan || "—"}
                     </td>
                     <td data-label="Users" className="text-right text-brio-ink tabular-nums">
                       {users || "—"}
@@ -264,7 +270,7 @@ export function CustomersPage() {
                 ))}
               </tbody>
             </RecordsTable>
-          </div>
+          </RecordsViewport>
         )}
         <TablePagination
           label="Customer pagination"
@@ -276,7 +282,6 @@ export function CustomersPage() {
             setOffset((page - 1) * pageSize);
             viewportRef.current?.scrollTo({ top: 0 });
           }}
-          pageSizes={pageSizes}
           autoPageSize={fixedPageSize === 0}
           onPageSizeChange={(size) => {
             setFixedPageSize(size);
@@ -285,6 +290,7 @@ export function CustomersPage() {
           }}
         />
       </Card>
+      {adding && <AddCustomerDialog onClose={() => setAdding(false)} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { Button, Card, EmptyState, Tabs } from "../components/ui";
 import { SignaturesTab } from "./tabs/SignaturesTab";
 import { DelegatesTab } from "./tabs/DelegatesTab";
 import { UserTable } from "../components/UserTable";
+import { RecordsHeading } from "../components/RecordsTable";
 import { HistoryTab } from "./tabs/HistoryTab";
 
 export function CustomerDetailPage({
@@ -43,8 +44,8 @@ export function CustomerDetailPage({
     navigate({ name: "customer", id, tab: t }, { preserveScroll: true });
 
   return (
-    <div className="min-w-0">
-      <Card className="overflow-hidden">
+    <div className="flex min-h-min min-w-0 flex-1 flex-col">
+      <Card className="shrink-0 overflow-hidden">
         {customer.status === "error" && (
           <div className="flex items-start gap-2 border-b border-brio-subtle bg-brio-danger-bg px-5 py-3 text-[13px] leading-5 text-brio-danger-ink sm:px-6">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" /> The demo directory connection needs
@@ -53,9 +54,9 @@ export function CustomerDetailPage({
         )}
         <dl className="grid auto-rows-fr grid-cols-2 gap-px bg-brio-subtle @min-[44rem]:grid-cols-3 @min-[90rem]:grid-cols-6">
           <Detail
-            label="Primary contact"
-            primary={customer.contactName}
-            secondary={customer.contactEmail}
+            label={customer.contactName ? "Primary contact" : "Workspace admin"}
+            primary={customer.contactName || customer.contactEmail}
+            secondary={customer.contactName ? customer.contactEmail : undefined}
           />
           <Detail
             label="Directory"
@@ -68,7 +69,7 @@ export function CustomerDetailPage({
           />
           <Detail
             label="Plan"
-            primary={customer.plan}
+            primary={customer.plan || "—"}
             secondary={"Customer since " + formatDate(customer.createdAt).split(",")[0]}
           />
           <Detail label="Service account" primary={customer.serviceAccount || "Not configured"} />
@@ -77,7 +78,7 @@ export function CustomerDetailPage({
         </dl>
       </Card>
 
-      <div className="mt-5">
+      <div className="mt-5 flex min-h-min flex-1 flex-col">
         <Tabs
           value={tab}
           onChange={setTab}
@@ -99,10 +100,20 @@ export function CustomerDetailPage({
           role="tabpanel"
           aria-labelledby={`customer-tab-${tab}`}
           tabIndex={0}
-          className="pt-5"
+          className="flex min-h-min flex-1 flex-col pt-5"
         >
           {tab === "directory" ? (
-            <UserTable users={users} />
+            <UserTable
+              users={users}
+              showOrgUnitColumn={false}
+              showOrgUnitFilter={false}
+              toolbarHeading={
+                <RecordsHeading
+                  title="Workspace directory"
+                  description={`Find people and view their Workspace account details for ${customer.domain}.`}
+                />
+              }
+            />
           ) : tab === "delegates" && !users.length ? (
             <Card>
               <EmptyState
